@@ -36,7 +36,7 @@ class DynamicalSystemAnimation(Animator):
         self,
         initial_dynamics,
         obstacle_environment,
-        start_position=np.array([0, 0]),
+        start_position=np.array([1, 0]),
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
     ):
@@ -210,8 +210,6 @@ def run_stationary_point_avoiding_dynamic_robot():
 if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
-
-    print("hi")
 
     # simple_point_robot()
     run_stationary_point_avoiding_dynamic_robot()
