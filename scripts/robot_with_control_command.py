@@ -1,7 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from abc import ABC, abstractmethod
+
+#from librairy of lukas : vartools
+from vartools.dynamical_systems import LinearSystem
 from vartools.animator import Animator
+
 
 class Robot:
     #class variable
@@ -11,15 +16,15 @@ class Robot:
         self,
         M = np.eye(dim),
         C = np.zeros((dim,dim)), #10*np.eye(dim) with damping
-        G = np.zeros((dim,1)),
+        G = np.zeros(dim),
 
-        tau_c = np.zeros((dim,1)),  #control torque
-        tau_e = np.zeros((dim,1)),  #external disturbance torque
+        tau_c = np.zeros(dim),  #control torque
+        tau_e = np.zeros(dim),  #external disturbance torque
 
         controller = None,
 
-        x = np.zeros((dim,1)),      #curent position
-        xdot = np.zeros((dim,1)),   #current velocity
+        x = np.zeros(dim),      #curent position
+        xdot = np.zeros(dim),   #current velocity
 
         dt = 0.1
     ):
@@ -41,14 +46,14 @@ class Robot:
         #right-hand side of the dynamics of the robot x'' = F(x,xdot,t)
         #to simulatate spring : add "- 100*pos" after C*vel
         return np.divide((self.tau_c + self.tau_e - self.G - np.matmul(self.C,vel)),
-                          np.diag(self.M).reshape((self.dim,1)))
+                          np.diag(self.M))
 
 
     def step(self):
         
         #update tau_c
         if not (self.controller is None):
-            self.tau_c = self.controller.get_tau_c(self.x, self.xdot)
+            self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
         
         #update x and xdot
         self.rk4_step()
@@ -76,8 +81,13 @@ class Robot:
         self.x += (m1 + 2*m2 + 2*m3 + m4)/6
         self.xdot += (k1 + 2*k2 + 2*k3 + k4)/6
 
+class Controller(ABC):
 
-class RegulationController:
+    @abstractmethod
+    def compute_tau_c():
+        pass
+
+class RegulationController(Controller):
     """
     in the form tau_c = G - (D*x_dot + K*x) , does regulation to 0
     """
@@ -89,17 +99,46 @@ class RegulationController:
         D = 10*np.eye(dim), 
         K = 100*np.eye(dim),
 
-        G = np.zeros((dim,1)),
+        G = np.zeros(dim),
     ):
         self.D = D
         self.K = K
         self.G = G
 
-    def get_tau_c(self, x, xdot):
+    def compute_tau_c(self, x, xdot):
         """
         return the torque control command
         """
         return self.G - ( np.matmul(self.D, xdot) + np.matmul(self.K, x) )
+
+class TrackingController(Controller):
+    """
+    In the form tau_c = G - D(xdot - f_desired(x))
+    """
+    #class variables
+    dim = 2
+
+    def __init__(
+        self, 
+        initial_dynamics = None, 
+        D = 10*np.eye(dim),
+
+        G = np.zeros(dim),
+    ):
+        self.initial_dynamics = initial_dynamics
+        self.D = D
+        self.G = G
+
+    def compute_tau_c(self, x, xdot):
+        """
+        return the torque control command
+        """
+        x = x.reshape((2,))
+        x_des = self.initial_dynamics.evaluate(x)
+        return self.G - np.matmul(self.D, (xdot - x_des))
+    
+
+
 
 
 
@@ -160,25 +199,66 @@ class CotrolledRobotAnimation(Animator):
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
 
+        #atractor position
+        atractor = np.array([0.0, 0.0])
+        if isinstance(self.robot.controller, TrackingController):
+            atractor = self.robot.controller.initial_dynamics.attractor_position
+        self.ax.plot(
+            atractor[0],
+            atractor[1],
+            "k*",
+            markersize=8,
+        )
+
 
 
 def run_control_robot():
     dt_simulation = 0.01
-    dt = dt_simulation #???
+    dt = dt_simulation 
+
+
+    x_init = np.array([1.0, 0.5])
+    xdot_init = np.array([5.0, 0.0])
 
     #setup of robot
 
+    ### ROBOT 1 : tau_c = 0, no command ###
     robot_not_controlled = Robot(
-        x = np.array([[1.],[0.5]]), 
-        xdot = np.array([[1.],[0.]]), 
+        x = x_init, 
+        xdot = xdot_init, 
         dt = dt,
-    ) #what is the simplest controller tau_c : 0 = no command
+    ) 
+
+
+    ### ROBOT 2 : tau_c regulates robot to origin ###
+    D = 10*np.eye(2) #damping matrix
+    #D[1,1] = 1 #less damped in y
 
     robot_regulated = Robot(
-        x = np.array([[1.],[0.5]]), 
-        xdot = np.array([[1.],[0.]]), 
+        x = x_init, 
+        xdot = xdot_init, 
         dt = dt,
-        controller = RegulationController(),
+        controller = RegulationController(
+            D=D
+        ),
+    )
+
+    ### ROBOT 3 : controlled via DS ###
+    #setup of dynamics for robot 3
+    initial_dynamics = LinearSystem(
+        attractor_position=np.array([2.0, 0.0]),
+        maximum_velocity=2,
+        distance_decrease=0.3,
+    )
+
+    robot_tracked = Robot(
+        x = x_init, 
+        xdot = xdot_init, 
+        dt = dt,
+        controller = TrackingController(
+            D=D,
+            initial_dynamics = initial_dynamics,
+        ),
     )
 
     #setup of animator
@@ -191,7 +271,8 @@ def run_control_robot():
         x_lim=[-3, 3],
         y_lim=[-2.1, 2.1],
         #robot = robot_not_controlled,
-        robot = robot_regulated,
+        #robot = robot_regulated,
+        robot = robot_tracked
     )
 
     my_animation.run(save_animation=False)
