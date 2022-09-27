@@ -9,6 +9,9 @@ from vartools.animator import Animator
 
 
 class Robot:
+    """
+    Mass point robot 
+    """
     #class variable
     dim = 2
 
@@ -49,15 +52,18 @@ class Robot:
                           np.diag(self.M))
 
 
-    def step(self):
+    def simulation_step(self):
         
         #update tau_c
         if not (self.controller is None):
             self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
-        
+
         #update x and xdot
         self.rk4_step()
-        pass
+
+        #reset the disturbance, because taken account of in rk4_step()
+        self.tau_e = np.array([0.0, 0.0])
+
 
     def rk4_step(self):
         """
@@ -82,6 +88,9 @@ class Robot:
         self.xdot += (k1 + 2*k2 + 2*k3 + k4)/6
 
 class Controller(ABC):
+    """
+    basic controller template
+    """
 
     @abstractmethod
     def compute_tau_c():
@@ -131,16 +140,11 @@ class TrackingController(Controller):
 
     def compute_tau_c(self, x, xdot):
         """
-        return the torque control command
+        return the torque control command, based of the desired DS
         """
-        x = x.reshape((2,))
         x_des = self.initial_dynamics.evaluate(x)
         return self.G - np.matmul(self.D, (xdot - x_des))
     
-
-
-
-
 
 class CotrolledRobotAnimation(Animator):
     #class variables
@@ -153,18 +157,22 @@ class CotrolledRobotAnimation(Animator):
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
         robot = None,
+        disturbance_magn = 200,
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
 
-        self.robot = robot
+        self.robot:Robot = robot #type hinting to let vscode know the methods of robots
 
         self.position_list = np.zeros((self.dim, self.it_max + 1))
         self.position_list[:, 0] = robot.x.reshape((2,))
         self.velocity_list = np.zeros((self.dim, self.it_max + 1))
         self.velocity_list[:, 0] = robot.xdot.reshape((2,))
 
-        
+        self.disturbance_magn = disturbance_magn
+        self.disturbance_list = np.empty((self.dim, 0))
+        self.disturbance_pos_list = np.empty((self.dim, 0))
+        self.new_disturbance = False
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
@@ -175,10 +183,15 @@ class CotrolledRobotAnimation(Animator):
         #simple display example
         #self.position_list[:,ii] = np.array([0.1*ii, -0.5])
 
-        self.robot.step()
-        self.position_list[:,ii + 1] = self.robot.x.reshape((2,))
-        self.velocity_list[:, ii + 1] = self.robot.xdot.reshape((2,))
+        self.robot.simulation_step()
 
+        self.position_list[:, ii + 1] = self.robot.x
+        self.velocity_list[:, ii + 1] = self.robot.xdot
+
+        #record position of the new disturbance added with key pressed
+        if self.new_disturbance:
+            self.disturbance_pos_list = np.append(self.disturbance_pos_list, self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
+            self.new_disturbance = False
 
         #CLEARING
         self.ax.clear()
@@ -209,6 +222,51 @@ class CotrolledRobotAnimation(Animator):
             "k*",
             markersize=8,
         )
+
+        #disturbance drawing
+        for i, disturbance in enumerate(self.disturbance_list.transpose()): #transpose ??
+            self.ax.arrow(self.disturbance_pos_list[0,i], self.disturbance_pos_list[1,i],
+                          disturbance[0]/10., disturbance[1]/10.0,
+                          width=self.disturbance_magn/10000.0,
+                          color= "r")
+
+
+    #overwrite key detection
+    def on_press(self, event):
+        if event.key.isspace():
+            self.pause_toggle()
+
+        elif event.key == "right":
+            print("->")
+            self.robot.tau_e = np.array([1.0, 0.0])*self.disturbance_magn
+            self.disturbance_list = np.append(self.disturbance_list, (np.array([[1.0], [0.0]])), axis=1)
+            self.new_disturbance = True
+            #TEST 
+
+        elif event.key == "left":
+            print("<-")
+            self.robot.tau_e = np.array([-1.0, 0.0])*self.disturbance_magn
+            self.disturbance_list = np.append(self.disturbance_list, (np.array([[-1.0], [0.0]])), axis=1)
+            self.new_disturbance = True
+
+        elif event.key == "up":
+            print("^\n|")
+            self.robot.tau_e = np.array([0.0, 1.0])*self.disturbance_magn
+            self.disturbance_list = np.append(self.disturbance_list, (np.array([[0.0], [1.0]])), axis=1)
+            self.new_disturbance = True
+    
+        elif event.key == "down":
+            print("|\nV")
+            self.robot.tau_e = np.array([0.0, -1.0])*self.disturbance_magn
+            self.disturbance_list = np.append(self.disturbance_list, (np.array([[0.0], [-1.0]])), axis=1)
+            self.new_disturbance = True
+
+        elif event.key == "d":
+            self.step_forward()
+
+        elif event.key == "a":
+            self.step_back()
+
 
 
 
@@ -256,7 +314,7 @@ def run_control_robot():
         xdot = xdot_init, 
         dt = dt,
         controller = TrackingController(
-            D=D,
+            D=D, #observation : with D = 100, robot beter follows the dynamics f_des(x) than with D = 10
             initial_dynamics = initial_dynamics,
         ),
     )
