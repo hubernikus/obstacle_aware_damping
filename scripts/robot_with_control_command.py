@@ -7,6 +7,17 @@ from abc import ABC, abstractmethod
 from vartools.dynamical_systems import LinearSystem
 from vartools.animator import Animator
 
+#TODO 
+#add magic number for G = np.array([0.0, 0.0]), dim...
+
+class Controller(ABC):
+    """
+    interface controller template
+    """
+
+    @abstractmethod
+    def compute_tau_c():
+        pass
 
 class Robot:
     """
@@ -24,12 +35,12 @@ class Robot:
         tau_c = np.zeros(dim),  #control torque
         tau_e = np.zeros(dim),  #external disturbance torque
 
-        controller = None,
+        controller:Controller = None,
 
         x = np.zeros(dim),      #curent position
         xdot = np.zeros(dim),   #current velocity
 
-        dt = 0.1
+        dt = 0.01
     ):
         self.M = M
         self.C = C
@@ -45,29 +56,35 @@ class Robot:
         self.tau_c = tau_c
         self.tau_e = tau_e
 
-    def Func_dyn(self, pos, vel, time): #vel is xdot, pos is x
-        #right-hand side of the dynamics of the robot x'' = F(x,xdot,t)
-        #to simulatate spring : add "- 100*pos" after C*vel
+    def Func_dyn(self, pos, vel, time): 
+        """
+        Use by the Runge Kutta algorithme to evaluate the position&velocity at the next time step
+        Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
+        /!\ it is assumed that there is no coupling, i.e. M is diagonal
+        """
         return np.divide((self.tau_c + self.tau_e - self.G - np.matmul(self.C,vel)),
                           np.diag(self.M))
 
 
     def simulation_step(self):
+        """
+        Performs one time step of the dynamics of the robot, update variables
+        """
         
         #update tau_c
-        if not (self.controller is None):
+        if self.controller is not None:
             self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
 
         #update x and xdot
         self.rk4_step()
 
-        #reset the disturbance, because taken account of in rk4_step()
+        #reset the disturbance, because taken account of it in rk4_step()
         self.tau_e = np.array([0.0, 0.0])
 
 
     def rk4_step(self):
         """
-        perform one time step
+        perform one time step of the RK4 algorithme
         """
         t = 0 #time not used
 
@@ -87,18 +104,11 @@ class Robot:
         self.x += (m1 + 2*m2 + 2*m3 + m4)/6
         self.xdot += (k1 + 2*k2 + 2*k3 + k4)/6
 
-class Controller(ABC):
-    """
-    basic controller template
-    """
 
-    @abstractmethod
-    def compute_tau_c():
-        pass
 
 class RegulationController(Controller):
     """
-    in the form tau_c = G - (D*x_dot + K*x) , does regulation to 0
+    in the form tau_c = G - D*x_dot - K*x , does regulation to 0
     """
     #class variables
     dim = 2
@@ -107,7 +117,6 @@ class RegulationController(Controller):
         self,
         D = 10*np.eye(dim), 
         K = 100*np.eye(dim),
-
         G = np.zeros(dim),
     ):
         self.D = D
@@ -116,22 +125,21 @@ class RegulationController(Controller):
 
     def compute_tau_c(self, x, xdot):
         """
-        return the torque control command
+        return the torque control command of the regulation controller,
         """
-        return self.G - ( np.matmul(self.D, xdot) + np.matmul(self.K, x) )
+        return self.G - np.matmul(self.D, xdot) - np.matmul(self.K, x)
 
 class TrackingController(Controller):
     """
-    In the form tau_c = G - D(xdot - f_desired(x))
+    in the form tau_c = G - D(xdot - f_desired(x))
     """
     #class variables
     dim = 2
 
     def __init__(
         self, 
-        initial_dynamics = None, 
+        initial_dynamics:LinearSystem = None, 
         D = 10*np.eye(dim),
-
         G = np.zeros(dim),
     ):
         self.initial_dynamics = initial_dynamics
@@ -140,7 +148,7 @@ class TrackingController(Controller):
 
     def compute_tau_c(self, x, xdot):
         """
-        return the torque control command, based of the desired DS
+        return the torque control command of the DS-tracking controller,
         """
         x_des = self.initial_dynamics.evaluate(x)
         return self.G - np.matmul(self.D, (xdot - x_des))
@@ -156,18 +164,18 @@ class CotrolledRobotAnimation(Animator):
         #start_velocity=np.array([0,0]),
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
-        robot = None,
+        robot:Robot = None,
         disturbance_magn = 200,
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
 
-        self.robot:Robot = robot #type hinting to let vscode know the methods of robots
+        self.robot = robot
 
         self.position_list = np.zeros((self.dim, self.it_max + 1))
-        self.position_list[:, 0] = robot.x.reshape((2,))
+        self.position_list[:, 0] = robot.x.reshape((self.dim,))
         self.velocity_list = np.zeros((self.dim, self.it_max + 1))
-        self.velocity_list[:, 0] = robot.xdot.reshape((2,))
+        self.velocity_list[:, 0] = robot.xdot.reshape((self.dim,))
 
         self.disturbance_magn = disturbance_magn
         self.disturbance_list = np.empty((self.dim, 0))
@@ -177,12 +185,9 @@ class CotrolledRobotAnimation(Animator):
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
     def update_step(self, ii: int) -> None:
-        print(f"iter : {ii}")
+        print(f"iter : {ii + 1}") #actual is i + 1
 
         #CALCULATION
-        #simple display example
-        #self.position_list[:,ii] = np.array([0.1*ii, -0.5])
-
         self.robot.simulation_step()
 
         self.position_list[:, ii + 1] = self.robot.x
@@ -190,7 +195,9 @@ class CotrolledRobotAnimation(Animator):
 
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:
-            self.disturbance_pos_list = np.append(self.disturbance_pos_list, self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
+            #bizarre line, recheck append
+            self.disturbance_pos_list = np.append(self.disturbance_pos_list, 
+                                                  self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
             self.new_disturbance = False
 
         #CLEARING
@@ -201,10 +208,10 @@ class CotrolledRobotAnimation(Animator):
         self.ax.plot(
             self.position_list[0, :ii], self.position_list[1, :ii], ":", color="#135e08"
         )
-        #actual position
+        #actual position is i + 1 ?
         self.ax.plot(
-            self.position_list[0, ii],
-            self.position_list[1, ii],
+            self.position_list[0, ii + 1],
+            self.position_list[1, ii + 1],
             "o",
             color="#135e08",
             markersize=12,
@@ -223,7 +230,7 @@ class CotrolledRobotAnimation(Animator):
             markersize=8,
         )
 
-        #disturbance drawing
+        #disturbance drawing, bizzare lines, recheck, magic numbers ??
         for i, disturbance in enumerate(self.disturbance_list.transpose()): #transpose ??
             self.ax.arrow(self.disturbance_pos_list[0,i], self.disturbance_pos_list[1,i],
                           disturbance[0]/10., disturbance[1]/10.0,
@@ -231,7 +238,8 @@ class CotrolledRobotAnimation(Animator):
                           color= "r")
 
 
-    #overwrite key detection
+    #overwrite key detection of Animator
+    #/!\ bug when 2 keys pressed at same time
     def on_press(self, event):
         if event.key.isspace():
             self.pause_toggle()
@@ -268,36 +276,34 @@ class CotrolledRobotAnimation(Animator):
             self.step_back()
 
 
-
-
 def run_control_robot():
     dt_simulation = 0.01
-    dt = dt_simulation 
 
-
+    #initial condition
     x_init = np.array([1.0, 0.5])
     xdot_init = np.array([5.0, 0.0])
 
-    #setup of robot
+    #other set of interesting initial conditions
+    # x_init = np.array([2.0, 0.0])
+    # xdot_init = np.array([0.0, 0.0])
 
     ### ROBOT 1 : tau_c = 0, no command ###
     robot_not_controlled = Robot(
         x = x_init, 
         xdot = xdot_init, 
-        dt = dt,
+        dt = dt_simulation,
     ) 
-
 
     ### ROBOT 2 : tau_c regulates robot to origin ###
     D = 10*np.eye(2) #damping matrix
-    #D[1,1] = 1 #less damped in y
+    #D[1,1] = 1         #less damped in y
 
     robot_regulated = Robot(
         x = x_init, 
         xdot = xdot_init, 
-        dt = dt,
+        dt = dt_simulation,
         controller = RegulationController(
-            D=D
+            D=D,
         ),
     )
 
@@ -312,7 +318,7 @@ def run_control_robot():
     robot_tracked = Robot(
         x = x_init, 
         xdot = xdot_init, 
-        dt = dt,
+        dt = dt_simulation,
         controller = TrackingController(
             D=D, #observation : with D = 100, robot beter follows the dynamics f_des(x) than with D = 10
             initial_dynamics = initial_dynamics,
@@ -321,6 +327,7 @@ def run_control_robot():
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
+        it_max = 200, #longer animation, default : 100
         dt_simulation=dt_simulation,
         dt_sleep=0.01,
     )
