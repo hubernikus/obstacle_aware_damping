@@ -231,8 +231,9 @@ class CotrolledRobotAnimation(Animator):
         )
 
         #disturbance drawing, bizzare lines, recheck, magic numbers ??
-        for i, disturbance in enumerate(self.disturbance_list.transpose()): #transpose ??
-            self.ax.arrow(self.disturbance_pos_list[0,i], self.disturbance_pos_list[1,i],
+        for  disturbance, disturbance_pos in zip(self.disturbance_list.transpose(),
+                                                 self.disturbance_pos_list.transpose()): #transpose ??
+            self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
                           disturbance[0]/10., disturbance[1]/10.0,
                           width=self.disturbance_magn/10000.0,
                           color= "r")
