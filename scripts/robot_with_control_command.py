@@ -13,6 +13,8 @@ from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
 from dynamic_obstacle_avoidance.visualization import plot_obstacles
 
+from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
+
 #TODO 
 #add magic number for G = np.array([0.0, 0.0]), dim...
 
@@ -76,7 +78,11 @@ class Robot:
         """
         Performs one time step of the dynamics of the robot, update variables
         """
-        
+
+        #update of D matrix to follow DS
+        if isinstance(self.controller, TrackingController):
+            self.controller.update_D_matrix(self.xdot)
+
         #update tau_c
         if self.controller is not None:
             self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
@@ -147,10 +153,14 @@ class TrackingController(Controller):
         dynamic_avoider:ModulationAvoider,
         D = 10*np.eye(dim),
         G = np.zeros(dim),
+        lambda_DS = 100.0, #to follow DS line
+        lambda_obs = 20.0, #suposed to be perp. to obs
+        
     ):
         self.dynamic_avoider = dynamic_avoider
         self.D = D
         self.G = G
+        self.lambda_mat = np.diag(np.array([lambda_DS, lambda_obs]))
 
     def compute_tau_c(self, x, xdot):
         """
@@ -158,6 +168,13 @@ class TrackingController(Controller):
         """
         x_dot_des = self.dynamic_avoider.evaluate(x)
         return self.G - np.matmul(self.D, (xdot - x_dot_des))
+    
+    def update_D_matrix(self, xdot):
+        if xdot.any() :
+            E = get_orthogonal_basis(xdot)
+            E_inv = np. linalg. inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
+            self.D = E@self.lambda_mat@E_inv
+        
     
 
 class CotrolledRobotAnimation(Animator):
@@ -173,6 +190,7 @@ class CotrolledRobotAnimation(Animator):
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
         disturbance_magn = 200,
+        draw_ideal_traj = False
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
@@ -190,6 +208,11 @@ class CotrolledRobotAnimation(Animator):
         self.disturbance_pos_list = np.empty((self.dim, 0))
         self.new_disturbance = False
 
+        self.position_list_ideal = np.zeros((self.dim, self.it_max + 1))
+        self.position_list_ideal[:, 0] = robot.x.reshape((self.dim,))
+
+        self.draw_ideal_traj = draw_ideal_traj
+
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
     def update_step(self, ii: int) -> None:
@@ -201,6 +224,16 @@ class CotrolledRobotAnimation(Animator):
         self.position_list[:, ii + 1] = self.robot.x
         self.velocity_list[:, ii + 1] = self.robot.xdot
 
+        #without physic constrains - ideal
+        if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
+            velocity_ideal = self.robot.controller.dynamic_avoider.evaluate(self.position_list_ideal[:, ii])
+            self.position_list_ideal[:, ii + 1] = (
+                velocity_ideal * self.dt_simulation + self.position_list_ideal[:, ii]
+            )
+        
+        # Update obstacles
+        self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
+
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:
             #bizarre line, recheck append
@@ -208,11 +241,23 @@ class CotrolledRobotAnimation(Animator):
                                                   self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
             self.new_disturbance = False
 
+        for obs in self.obstacle_environment:
+            #obs.get_normals() ##IMPLEMENT HERE##
+            pass
+
         #CLEARING
         self.ax.clear()
 
         #PLOTTING
-        #past trajectory
+        #ideal trajectory - in black
+        if self.draw_ideal_traj:
+            self.ax.plot(
+                self.position_list_ideal[0, :ii + 1], 
+                self.position_list_ideal[1, :ii +1], 
+                ":", color="#000000"
+            )
+
+        #past trajectory - in green
         self.ax.plot(
             self.position_list[0, :ii], self.position_list[1, :ii], ":", color="#135e08"
         )
@@ -298,8 +343,8 @@ def run_control_robot():
     dt_simulation = 0.01
 
     #initial condition
-    x_init = np.array([0.0, 0.5])
-    xdot_init = np.array([2.0, 0.0])
+    x_init = np.array([0.6, 0.3])
+    xdot_init = np.array([0.0, 0.0])
 
     #setup atractor if used
     attractor_position = np.array([2.0, 0.0])
@@ -313,11 +358,23 @@ def run_control_robot():
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.1,
             # orientation=10 * pi / 180,
-            #linear_velocity = np.array([-1.0, 0.0]),
+            #linear_velocity = np.array([0.0, 0.5]),
             tail_effect=False,
             # repulsion_coeff=1.4,
         )
     )
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[0.4, 0.4],
+    #         center_position=np.array([0.5, -0.25]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.1,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 0.5]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
 
     ### ROBOT 1 : tau_c = 0, no command ###
     robot_not_controlled = Robot(
@@ -343,7 +400,7 @@ def run_control_robot():
     #setup of dynamics for robot 3
     initial_dynamics = LinearSystem(
         attractor_position = attractor_position,
-        maximum_velocity=5,
+        maximum_velocity=3,
         distance_decrease=0.3,
     )
 
@@ -372,8 +429,9 @@ def run_control_robot():
         #robot = robot_regulated,
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
-        x_lim=[-3, 3],
-        y_lim=[-2.1, 2.1],
+        x_lim = [-3, 3],
+        y_lim = [-2.1, 2.1],
+        draw_ideal_traj = True,
     )
 
     my_animation.run(save_animation=False)
