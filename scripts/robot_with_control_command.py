@@ -145,11 +145,9 @@ class TrackingController(Controller):
     def __init__(
         self,
         dynamic_avoider:ModulationAvoider,
-        #initial_dynamics:LinearSystem = None,
         D = 10*np.eye(dim),
         G = np.zeros(dim),
     ):
-        #self.initial_dynamics = initial_dynamics
         self.dynamic_avoider = dynamic_avoider
         self.D = D
         self.G = G
@@ -158,7 +156,6 @@ class TrackingController(Controller):
         """
         return the torque control command of the DS-tracking controller,
         """
-        #x_dot_des = self.initial_dynamics.evaluate(x)
         x_dot_des = self.dynamic_avoider.evaluate(x)
         return self.G - np.matmul(self.D, (xdot - x_dot_des))
     
@@ -183,15 +180,6 @@ class CotrolledRobotAnimation(Animator):
         self.robot = robot
         self.obstacle_environment = obstacle_environment
 
-        #bouger dans robot ou tracking cont
-        # if isinstance(self.robot.controller, TrackingController):
-        #     self.dynamic_avoider = ModulationAvoider(
-        #         initial_dynamics=self.robot.controller.initial_dynamics,
-        #         obstacle_environment=self.obstacle_environment,
-        #     )
-
-
-
         self.position_list = np.zeros((self.dim, self.it_max + 1))
         self.position_list[:, 0] = robot.x.reshape((self.dim,))
         self.velocity_list = np.zeros((self.dim, self.it_max + 1))
@@ -203,7 +191,6 @@ class CotrolledRobotAnimation(Animator):
         self.new_disturbance = False
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
-
 
     def update_step(self, ii: int) -> None:
         print(f"iter : {ii + 1}") #actual is i + 1
@@ -312,7 +299,7 @@ def run_control_robot():
 
     #initial condition
     x_init = np.array([0.0, 0.5])
-    xdot_init = np.array([5.0, 0.0])
+    xdot_init = np.array([2.0, 0.0])
 
     #setup atractor if used
     attractor_position = np.array([2.0, 0.0])
@@ -331,10 +318,6 @@ def run_control_robot():
             # repulsion_coeff=1.4,
         )
     )
-
-    #other set of interesting initial conditions
-    # x_init = np.array([2.0, 0.0])
-    # xdot_init = np.array([0.0, 0.0])
 
     ### ROBOT 1 : tau_c = 0, no command ###
     robot_not_controlled = Robot(
