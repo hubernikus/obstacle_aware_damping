@@ -297,7 +297,7 @@ def run_control_robot():
 
     ### ROBOT 2 : tau_c regulates robot to origin ###
     D = 10*np.eye(2) #damping matrix
-    #D[1,1] = 1         #less damped in y
+    #D[1,1] = 1        #less damped in y
 
     robot_regulated = Robot(
         x = x_init, 
