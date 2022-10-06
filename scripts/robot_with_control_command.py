@@ -7,6 +7,12 @@ from abc import ABC, abstractmethod
 from vartools.dynamical_systems import LinearSystem
 from vartools.animator import Animator
 
+#from librairy of lukas : dynamic_obstacle_avoidance
+from dynamic_obstacle_avoidance.containers import ObstacleContainer
+from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
+from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
+from dynamic_obstacle_avoidance.visualization import plot_obstacles
+
 #TODO 
 #add magic number for G = np.array([0.0, 0.0]), dim...
 
@@ -58,7 +64,7 @@ class Robot:
 
     def Func_dyn(self, pos, vel, time): 
         """
-        Use by the Runge Kutta algorithme to evaluate the position&velocity at the next time step
+        Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
         Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
         /!\ it is assumed that there is no coupling, i.e. M is diagonal
         """
@@ -137,12 +143,14 @@ class TrackingController(Controller):
     dim = 2
 
     def __init__(
-        self, 
-        initial_dynamics:LinearSystem = None, 
+        self,
+        dynamic_avoider:ModulationAvoider,
+        #initial_dynamics:LinearSystem = None,
         D = 10*np.eye(dim),
         G = np.zeros(dim),
     ):
-        self.initial_dynamics = initial_dynamics
+        #self.initial_dynamics = initial_dynamics
+        self.dynamic_avoider = dynamic_avoider
         self.D = D
         self.G = G
 
@@ -150,8 +158,9 @@ class TrackingController(Controller):
         """
         return the torque control command of the DS-tracking controller,
         """
-        x_des = self.initial_dynamics.evaluate(x)
-        return self.G - np.matmul(self.D, (xdot - x_des))
+        #x_dot_des = self.initial_dynamics.evaluate(x)
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+        return self.G - np.matmul(self.D, (xdot - x_dot_des))
     
 
 class CotrolledRobotAnimation(Animator):
@@ -162,15 +171,26 @@ class CotrolledRobotAnimation(Animator):
         self,
         #start_position=np.array([-2.5, 0.5]),
         #start_velocity=np.array([0,0]),
+        robot:Robot,
+        obstacle_environment:ObstacleContainer,
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
-        robot:Robot = None,
         disturbance_magn = 200,
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
 
         self.robot = robot
+        self.obstacle_environment = obstacle_environment
+
+        #bouger dans robot ou tracking cont
+        # if isinstance(self.robot.controller, TrackingController):
+        #     self.dynamic_avoider = ModulationAvoider(
+        #         initial_dynamics=self.robot.controller.initial_dynamics,
+        #         obstacle_environment=self.obstacle_environment,
+        #     )
+
+
 
         self.position_list = np.zeros((self.dim, self.it_max + 1))
         self.position_list[:, 0] = robot.x.reshape((self.dim,))
@@ -183,6 +203,7 @@ class CotrolledRobotAnimation(Animator):
         self.new_disturbance = False
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
+
 
     def update_step(self, ii: int) -> None:
         print(f"iter : {ii + 1}") #actual is i + 1
@@ -222,12 +243,21 @@ class CotrolledRobotAnimation(Animator):
         #atractor position
         atractor = np.array([0.0, 0.0])
         if isinstance(self.robot.controller, TrackingController):
-            atractor = self.robot.controller.initial_dynamics.attractor_position
+            atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
         self.ax.plot(
             atractor[0],
             atractor[1],
             "k*",
             markersize=8,
+        )
+
+        #obstacles positions
+        plot_obstacles(
+            ax=self.ax,
+            obstacle_container=self.obstacle_environment,
+            x_lim=self.x_lim,
+            y_lim=self.y_lim,
+            showLabel=False,
         )
 
         #disturbance drawing, bizzare lines, recheck, magic numbers ??
@@ -281,8 +311,26 @@ def run_control_robot():
     dt_simulation = 0.01
 
     #initial condition
-    x_init = np.array([1.0, 0.5])
+    x_init = np.array([0.0, 0.5])
     xdot_init = np.array([5.0, 0.0])
+
+    #setup atractor if used
+    attractor_position = np.array([2.0, 0.0])
+
+    #setup of obstacles
+    obstacle_environment = ObstacleContainer()
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.4, 0.4],
+            center_position=np.array([1.0, 0.25]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.1,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([-1.0, 0.0]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
 
     #other set of interesting initial conditions
     # x_init = np.array([2.0, 0.0])
@@ -311,8 +359,8 @@ def run_control_robot():
     ### ROBOT 3 : controlled via DS ###
     #setup of dynamics for robot 3
     initial_dynamics = LinearSystem(
-        attractor_position=np.array([2.0, 0.0]),
-        maximum_velocity=2,
+        attractor_position = attractor_position,
+        maximum_velocity=5,
         distance_decrease=0.3,
     )
 
@@ -322,7 +370,10 @@ def run_control_robot():
         dt = dt_simulation,
         controller = TrackingController(
             D=D, #observation : with D = 100, robot beter follows the dynamics f_des(x) than with D = 10
-            initial_dynamics = initial_dynamics,
+            dynamic_avoider = ModulationAvoider(
+                initial_dynamics=initial_dynamics,
+                obstacle_environment=obstacle_environment,
+            )
         ),
     )
 
@@ -334,11 +385,12 @@ def run_control_robot():
     )
 
     my_animation.setup(
-        x_lim=[-3, 3],
-        y_lim=[-2.1, 2.1],
         #robot = robot_not_controlled,
         #robot = robot_regulated,
-        robot = robot_tracked
+        robot = robot_tracked,
+        obstacle_environment = obstacle_environment,
+        x_lim=[-3, 3],
+        y_lim=[-2.1, 2.1],
     )
 
     my_animation.run(save_animation=False)
