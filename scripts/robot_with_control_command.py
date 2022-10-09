@@ -346,8 +346,16 @@ def run_control_robot():
     x_init = np.array([0.6, 0.3])
     xdot_init = np.array([0.0, 0.0])
 
+
+    # #remove overwrite
+    # x_init = np.array([-1.0, 2.0])
+    # xdot_init = np.array([0.0, 0.0])
+
     #setup atractor if used
     attractor_position = np.array([2.0, 0.0])
+    
+    # #remove
+    # attractor_position = np.array([0.0, 0.0])
 
     #setup of obstacles
     obstacle_environment = ObstacleContainer()
@@ -363,6 +371,7 @@ def run_control_robot():
             # repulsion_coeff=1.4,
         )
     )
+
     # obstacle_environment.append(
     #     Cuboid(
     #         axes_length=[0.4, 0.4],
@@ -413,7 +422,9 @@ def run_control_robot():
             dynamic_avoider = ModulationAvoider(
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
-            )
+            ),
+            lambda_DS=100,
+            lambda_obs=20,
         ),
     )
 
