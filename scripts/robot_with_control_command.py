@@ -81,7 +81,7 @@ class Robot:
 
         #update of D matrix to follow DS
         if isinstance(self.controller, TrackingController):
-            self.controller.update_D_matrix(self.xdot)
+            self.controller.update_D_matrix(self.x)
 
         #update tau_c
         if self.controller is not None:
@@ -169,11 +169,12 @@ class TrackingController(Controller):
         x_dot_des = self.dynamic_avoider.evaluate(x)
         return self.G - np.matmul(self.D, (xdot - x_dot_des))
     
-    def update_D_matrix(self, xdot):
-        if xdot.any() :
-            E = get_orthogonal_basis(xdot)
-            E_inv = np. linalg. inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
-            self.D = E@self.lambda_mat@E_inv
+    def update_D_matrix(self, x):
+        #je viens de modif ca
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+        E = get_orthogonal_basis(x_dot_des)
+        E_inv = np. linalg. inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
+        self.D = E@self.lambda_mat@E_inv
         
     
 
@@ -445,6 +446,7 @@ def run_control_robot():
         draw_ideal_traj = True,
     )
 
+    my_animation.fig.canvas.mpl_connect("button_press_event", lambda x: print("hey"))
     my_animation.run(save_animation=False)
 
 
