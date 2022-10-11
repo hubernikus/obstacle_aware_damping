@@ -268,7 +268,7 @@ def run_control_robot():
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
             ),
-            lambda_DS=100,
+            lambda_DS=200, #must not be > 200 (num error, patch dt smaller)
             lambda_obs=20,
         ),
     )

@@ -1,3 +1,5 @@
+#need to be in main file : pip install -e .
+
 from setuptools import setup
 
 package_name = "librairies"
