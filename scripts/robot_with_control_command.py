@@ -46,7 +46,7 @@ def run_control_robot():
     # obstacle_environment.append(
     #     Cuboid(
     #         axes_length=[0.4, 0.4],
-    #         center_position=np.array([0.5, -0.25]),
+    #         center_position=np.array([0.7, -0.1]),
     #         # center_position=np.array([0.9, 0.25]),
     #         margin_absolut=0.1,
     #         # orientation=10 * pi / 180,

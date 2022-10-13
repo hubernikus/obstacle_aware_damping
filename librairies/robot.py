@@ -55,9 +55,15 @@ class Robot:
         Performs one time step of the dynamics of the robot, update variables
         """
 
+        #type_of_D_matrix = "ds_following"
+        type_of_D_matrix = "obs_passivity"
+
         #update of D matrix to follow DS
         if isinstance(self.controller, TrackingController):
-            self.controller.update_D_matrix(self.x)
+            if type_of_D_matrix == "ds_following":
+                self.controller.update_D_matrix(self.x)
+            else:
+                self.controller.update_D_matrix_wrt_obs()
 
         #update tau_c
         if self.controller is not None:

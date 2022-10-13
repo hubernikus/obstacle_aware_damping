@@ -59,6 +59,10 @@ class TrackingController(Controller):
         self.G = G
         self.lambda_mat = np.diag(np.array([lambda_DS, lambda_obs]))
 
+        self.obs_normals_list = np.empty((self.dim, 0))
+        self.obs_gamma_list = np.empty(0)
+
+
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the DS-tracking controller,
@@ -73,3 +77,19 @@ class TrackingController(Controller):
         E = get_orthogonal_basis(x_dot_des)
         E_inv = np.linalg.inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
         self.D = E@self.lambda_mat@E_inv
+
+    def update_D_matrix_wrt_obs(self):
+        lambda_perp = 20
+        lambda_obs_scaling = 20
+        if self.obs_gamma_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+        for normal, gamma in zip(self.obs_normals_list.T, self.obs_gamma_list):
+            #only implemented for 1 obs
+            E = get_orthogonal_basis(normal)
+            E_inv = np.linalg.inv(E)
+            
+            self.lambda_mat = np.array([[lambda_obs_scaling/(gamma-1), 0.0], [0.0, 20.0]])
+            self.lambda_mat[self.lambda_mat > 200.0] = 200.0 #limit to avoid num error w/ rk4
+
+        self.D = E@self.lambda_mat@E_inv
+

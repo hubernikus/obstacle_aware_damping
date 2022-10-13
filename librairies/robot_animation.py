@@ -57,21 +57,10 @@ class CotrolledRobotAnimation(Animator):
         
 
     def update_step(self, ii: int) -> None:
-        print(f"iter : {ii + 1}") #actual is i + 1
+        print(f"iter : {ii + 1}") #because starting at 0
 
         #CALCULATION
-        self.robot.simulation_step()
 
-        self.position_list[:, ii + 1] = self.robot.x
-        self.velocity_list[:, ii + 1] = self.robot.xdot
-
-        #without physic constrains - ideal
-        if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
-            velocity_ideal = self.robot.controller.dynamic_avoider.evaluate(self.position_list_ideal[:, ii])
-            self.position_list_ideal[:, ii + 1] = (
-                velocity_ideal * self.dt_simulation + self.position_list_ideal[:, ii]
-            )
-        
         # Update obstacles
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
@@ -81,10 +70,36 @@ class CotrolledRobotAnimation(Animator):
             self.disturbance_pos_list = np.append(self.disturbance_pos_list, 
                                                   self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
             self.new_disturbance = False
+        
+        #get the normal + distance of the obstacles for the D_matrix of the controller
+        self.robot.controller.obs_normals_list = np.empty((self.dim, 0))
+        self.robot.controller.obs_gamma_list =np.empty(0)
 
         for obs in self.obstacle_environment:
-            #obs.get_normals() ##IMPLEMENT HERE##
-            pass
+            self.robot.controller.obs_normals_list = np.append(
+                self.robot.controller.obs_normals_list,
+                obs.get_normal_direction(
+                    self.position_list[:, ii], in_obstacle_frame = False
+                ).reshape(self.dim, 1),
+                axis=1
+            )
+            self.robot.controller.obs_gamma_list = np.append(
+                self.robot.controller.obs_gamma_list,
+                obs.get_gamma(self.position_list[:, ii], in_obstacle_frame = False)
+            ) 
+
+        #updating the robot + record trajectory
+        self.robot.simulation_step()
+        
+        self.position_list[:, ii + 1] = self.robot.x
+        self.velocity_list[:, ii + 1] = self.robot.xdot
+
+        #record trajectory without physical constrains - ideal
+        if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
+            velocity_ideal = self.robot.controller.dynamic_avoider.evaluate(self.position_list_ideal[:, ii])
+            self.position_list_ideal[:, ii + 1] = (
+                velocity_ideal * self.dt_simulation + self.position_list_ideal[:, ii]
+            )
 
         #CLEARING
         self.ax.clear()
@@ -93,19 +108,20 @@ class CotrolledRobotAnimation(Animator):
         #ideal trajectory - in black
         if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
             self.ax.plot(
-                self.position_list_ideal[0, :ii + 1], 
-                self.position_list_ideal[1, :ii +1], 
+                self.position_list_ideal[0, :ii], 
+                self.position_list_ideal[1, :ii], 
                 ":", color="#000000"
             )
 
         #past trajectory - in green
+        if ii >= 1: #not first iter
+            self.ax.plot(
+                self.position_list[0, :(ii - 1)], self.position_list[1, :(ii - 1)], ":", color="#135e08"
+            )
+        #actual position is i, futur position is i + 1 (will be plot next cycle)
         self.ax.plot(
-            self.position_list[0, :ii], self.position_list[1, :ii], ":", color="#135e08"
-        )
-        #actual position is i + 1 ?
-        self.ax.plot(
-            self.position_list[0, ii + 1],
-            self.position_list[1, ii + 1],
+            self.position_list[0, ii],
+            self.position_list[1, ii],
             "o",
             color="#135e08",
             markersize=12,
