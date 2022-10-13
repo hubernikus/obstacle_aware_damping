@@ -1,8 +1,7 @@
 import numpy as np
 
+#my librairies
 from librairies.controller import Controller, TrackingController
-
-
 
 class Robot:
     """
@@ -47,7 +46,7 @@ class Robot:
         Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
         /!\ it is assumed that there is no coupling, i.e. M is diagonal
         """
-        return np.divide((self.tau_c + self.tau_e - self.G - np.matmul(self.C,vel)),
+        return np.divide((self.tau_c + self.tau_e - self.G - self.C@vel),
                           np.diag(self.M))
 
 

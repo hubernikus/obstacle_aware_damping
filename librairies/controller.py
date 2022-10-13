@@ -64,12 +64,12 @@ class TrackingController(Controller):
         return the torque control command of the DS-tracking controller,
         """
         x_dot_des = self.dynamic_avoider.evaluate(x)
-        tau_c = self.G - np.matmul(self.D, (xdot - x_dot_des))
+        tau_c = self.G - self.D@(xdot - x_dot_des)
         return tau_c
     
     def update_D_matrix(self, x):
         #je viens de modif ca
         x_dot_des = self.dynamic_avoider.evaluate(x)
         E = get_orthogonal_basis(x_dot_des)
-        E_inv = np. linalg. inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
+        E_inv = np.linalg.inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
         self.D = E@self.lambda_mat@E_inv
