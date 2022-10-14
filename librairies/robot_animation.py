@@ -12,7 +12,6 @@ from dynamic_obstacle_avoidance.visualization import plot_obstacles
 
 #my librairies
 from librairies.robot import Robot
-from librairies.controller import TrackingController
 
 class CotrolledRobotAnimation(Animator):
     #class variables
@@ -27,7 +26,7 @@ class CotrolledRobotAnimation(Animator):
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
         disturbance_scaling = 200,
-        draw_ideal_traj = False
+        draw_ideal_traj = False,
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
@@ -73,7 +72,7 @@ class CotrolledRobotAnimation(Animator):
         
         #get the normal + distance of the obstacles for the D_matrix of the controller
         self.robot.controller.obs_normals_list = np.empty((self.dim, 0))
-        self.robot.controller.obs_gamma_list =np.empty(0)
+        self.robot.controller.obs_dist_list =np.empty(0)
 
         for obs in self.obstacle_environment:
             self.robot.controller.obs_normals_list = np.append(
@@ -83,10 +82,14 @@ class CotrolledRobotAnimation(Animator):
                 ).reshape(self.dim, 1),
                 axis=1
             )
-            self.robot.controller.obs_gamma_list = np.append(
-                self.robot.controller.obs_gamma_list,
-                obs.get_gamma(self.position_list[:, ii], in_obstacle_frame = False)
-            ) 
+            self.robot.controller.obs_dist_list = np.append(
+                self.robot.controller.obs_dist_list,
+                obs.get_distance_to_surface(
+                    self.position_list[:, ii], in_obstacle_frame = False
+                )
+            )
+            print(obs.get_distance_to_surface(self.position_list[:, ii], in_obstacle_frame = False))
+
 
         #updating the robot + record trajectory
         self.robot.simulation_step()
@@ -95,8 +98,10 @@ class CotrolledRobotAnimation(Animator):
         self.velocity_list[:, ii + 1] = self.robot.xdot
 
         #record trajectory without physical constrains - ideal
-        if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
-            velocity_ideal = self.robot.controller.dynamic_avoider.evaluate(self.position_list_ideal[:, ii])
+        if self.draw_ideal_traj:
+            velocity_ideal = self.robot.controller.dynamic_avoider.evaluate(
+                self.position_list_ideal[:, ii]
+            )
             self.position_list_ideal[:, ii + 1] = (
                 velocity_ideal * self.dt_simulation + self.position_list_ideal[:, ii]
             )
@@ -106,7 +111,7 @@ class CotrolledRobotAnimation(Animator):
 
         #PLOTTING
         #ideal trajectory - in black
-        if self.draw_ideal_traj and isinstance(self.robot.controller, TrackingController):
+        if self.draw_ideal_traj:
             self.ax.plot(
                 self.position_list_ideal[0, :ii], 
                 self.position_list_ideal[1, :ii], 
@@ -130,9 +135,8 @@ class CotrolledRobotAnimation(Animator):
         self.ax.set_ylim(self.y_lim)
 
         #atractor position
-        atractor = np.array([0.0, 0.0])
-        if isinstance(self.robot.controller, TrackingController):
-            atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
+
+        atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
         self.ax.plot(
             atractor[0],
             atractor[1],
@@ -161,6 +165,8 @@ class CotrolledRobotAnimation(Animator):
     #overwrite key detection of Animator -> not use anymore
     #/!\ bug when 2 keys pressed at same time
     def on_press_not_use(self, event):
+        if True:
+            raise NotImplementedError("Depreciated ---- remove")
         if event.key.isspace():
             self.pause_toggle()
 
@@ -195,7 +201,7 @@ class CotrolledRobotAnimation(Animator):
         elif event.key == "a":
             self.step_back()
 
-    #overwrite run to change "button_press_event"
+    #overwrite run() to change "button_press_event"
     def run(self, save_animation: bool = False) -> None:
             """Runs the animation"""
             if self.fig is None:

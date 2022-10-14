@@ -1,7 +1,7 @@
 import numpy as np
 
 #my librairies
-from librairies.controller import Controller, TrackingController
+from librairies.controller import TrackingController
 
 class Robot:
     """
@@ -19,7 +19,7 @@ class Robot:
         tau_c = np.zeros(dim),  #control torque
         tau_e = np.zeros(dim),  #external disturbance torque
 
-        controller:Controller = None,
+        controller:TrackingController = None,
 
         x = np.zeros(dim),      #curent position
         xdot = np.zeros(dim),   #current velocity
@@ -55,15 +55,8 @@ class Robot:
         Performs one time step of the dynamics of the robot, update variables
         """
 
-        #type_of_D_matrix = "ds_following"
-        type_of_D_matrix = "obs_passivity"
-
-        #update of D matrix to follow DS
-        if isinstance(self.controller, TrackingController):
-            if type_of_D_matrix == "ds_following":
-                self.controller.update_D_matrix(self.x)
-            else:
-                self.controller.update_D_matrix_wrt_obs()
+        #update of D matrix to follow DS or passive to obs
+        self.controller.update_D_matrix(self.x)
 
         #update tau_c
         if self.controller is not None:
