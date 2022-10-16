@@ -59,8 +59,7 @@ class Robot:
         self.controller.update_D_matrix(self.x)
 
         #update tau_c
-        if self.controller is not None:
-            self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
+        self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
 
         #update x and xdot
         self.rk4_step()

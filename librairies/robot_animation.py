@@ -53,12 +53,12 @@ class CotrolledRobotAnimation(Animator):
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
-        
-
     def update_step(self, ii: int) -> None:
         print(f"iter : {ii + 1}") #because starting at 0
-
-        #CALCULATION
+        
+        ###################
+        ### CALCULATION ###
+        ###################
 
         # Update obstacles
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
@@ -88,7 +88,7 @@ class CotrolledRobotAnimation(Animator):
                     self.position_list[:, ii], in_obstacle_frame = False
                 )
             )
-            print(obs.get_distance_to_surface(self.position_list[:, ii], in_obstacle_frame = False))
+            #print(obs.get_distance_to_surface(self.position_list[:, ii], in_obstacle_frame = False))
 
 
         #updating the robot + record trajectory
@@ -106,10 +106,16 @@ class CotrolledRobotAnimation(Animator):
                 velocity_ideal * self.dt_simulation + self.position_list_ideal[:, ii]
             )
 
-        #CLEARING
+        #################
+        #### CLEARING ###
+        #################
+
         self.ax.clear()
 
-        #PLOTTING
+        ################
+        ### PLOTTING ###
+        ################
+
         #ideal trajectory - in black
         if self.draw_ideal_traj:
             self.ax.plot(
@@ -280,7 +286,7 @@ class CotrolledRobotAnimation(Animator):
                                 event.ydata - self.y_press_disturbance])*self.disturbance_scaling
         if np.linalg.norm(disturbance) < 10.0:
             return
-        print("disturbance : ", disturbance)
+        #print("disturbance : ", disturbance)
         self.robot.tau_e = disturbance
         self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.dim,1), axis=1)
         self.new_disturbance = True

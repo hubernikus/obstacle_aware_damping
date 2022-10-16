@@ -70,8 +70,10 @@ def run_control_robot():
     #D[1,1] = 1        #less damped in y
 
     #setup of compliance values
-    lambda_DS=100.0 #must not be > 200 (num error, patch dt smaller)
-    lambda_obs=20.0
+    lambda_DS = 100.0 #must not be > 200 (num error, patch dt smaller)
+    lambda_perp = 20.0
+    lambda_obs_scaling = 20.0 #scaling factor
+
 
     ### ROBOT 1 : tau_c = 0, no command ###
     robot_not_controlled = Robot(
@@ -103,8 +105,9 @@ def run_control_robot():
                 obstacle_environment=obstacle_environment,
             ),
             lambda_DS=lambda_DS,
-            lambda_obs=lambda_obs,
-            type_of_D_matrix = TypeD.DS_FOLLOWING, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY
+            lambda_perp=lambda_perp,
+            lambda_obs_scaling = lambda_obs_scaling,
+            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY orTypeD.BOTH
         ),
     )
 
@@ -116,8 +119,6 @@ def run_control_robot():
     )
 
     my_animation.setup(
-        #robot = robot_not_controlled,
-        #robot = robot_regulated,
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
         x_lim = [-3, 3],
