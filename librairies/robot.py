@@ -46,7 +46,7 @@ class Robot:
         """
 
         #update of D matrix to follow DS or passive to obs
-        self.controller.update_D_matrix(self.x)
+        self.controller.update_D_matrix(self.x, self.xdot)
 
         #update tau_c
         self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
@@ -55,7 +55,8 @@ class Robot:
         self.rk4_step()
         #self.euler_forward_step()
 
-        #reset the disturbance, because taken account of it in rk4_step()
+        #reset the disturbance, because taken account of it in rk4_step() 
+        # i.e. disturbance are ponctual, only applied once to the system
         self.tau_e = np.array([0.0, 0.0])
 
     def Func_dyn(self, pos, vel, time): 

@@ -24,7 +24,7 @@ def run_control_robot():
     dt_simulation = 0.01
 
     #initial condition
-    x_init = np.array([-0.5, 0.4])
+    x_init = np.array([-0.7, 0.4])
     xdot_init = np.array([0.0, 0.0])
 
     #setup atractor 
@@ -34,7 +34,7 @@ def run_control_robot():
     obstacle_environment = ObstacleContainer()
     obstacle_environment.append(
         Cuboid(
-            axes_length=[0.4, 0.4],
+            axes_length=[0.6, 0.6],
             center_position=np.array([0.0, 0.25]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.1,

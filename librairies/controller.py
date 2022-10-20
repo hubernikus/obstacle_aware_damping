@@ -83,14 +83,15 @@ class TrackingController(Controller):
         tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
         return tau_c
 
-    def update_D_matrix(self, x):
+    def update_D_matrix(self, x, xdot):
         if self.type_of_D_matrix == TypeD.DS_FOLLOWING:
             D = self.update_D_matrix_wrt_DS(x)
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
-            D = self.update_D_matrix_wrt_obs()
+            D = self.update_D_matrix_wrt_obs(xdot)
         elif self.type_of_D_matrix == TypeD.BOTH:
-            D = self.update_D_matrix_wrt_both_not_orthogonal(x)
+            D = self.update_D_matrix_wrt_both_not_orthogonal(x, xdot)
         self.D = D
+
     
     def update_D_matrix_wrt_DS(self, x):
         x_dot_des = self.dynamic_avoider.evaluate(x)
@@ -99,21 +100,31 @@ class TrackingController(Controller):
         lambda_mat = np.array([[self.lambda_DS, 0.0], [0.0, self.lambda_perp]])
         return E@lambda_mat@E_inv
 
-    def update_D_matrix_wrt_obs(self):
-        if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
+    def update_D_matrix_wrt_obs(self, xdot):
         if not self.obs_dist_list: #no obstacles
             return self.D
+
+        if self.obs_dist_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+        
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #only implemented for 1 obs
             if dist <= 0: #if dist <0 where IN the obs
                 return self.D
-
-            E = get_orthogonal_basis(normal)
+            e2 = normal
+            e1 = np.array([e2[1], -e2[0]])
+            E = np.array([e1, e2]).T
             #E[:,[0,1]] = E[:,[1,0]]
             E_inv = np.linalg.inv(E)
 
-            lambda_mat = np.array([[self.lambda_obs_scaling/dist, 0.0], [0.0, self.lambda_perp]])
+            lambda_2 = max(self.lambda_obs_scaling/dist, self.lambda_perp)
+
+            #if we go away from obs, we relax the stiffness
+            if np.dot(xdot, e2) > 0:
+                lambda_2 = self.lambda_perp
+
+            lambda_mat = np.array([[self.lambda_perp, 0.0], [0.0, lambda_2]])
+            
             #limit to avoid num error w/ rk4
             lambda_mat[lambda_mat > mn.LAMBDA_MAX] = mn.LAMBDA_MAX 
             
@@ -121,8 +132,8 @@ class TrackingController(Controller):
             return E@lambda_mat@E_inv
 
     #not used -> retest
-    def update_D_matrix_wrt_both_mat_mul(self, x):
-        D_obs = self.update_D_matrix_wrt_obs()
+    def update_D_matrix_wrt_both_mat_mul(self, x, xdot):
+        D_obs = self.update_D_matrix_wrt_obs(xdot)
         D_ds = self.update_D_matrix_wrt_DS(x)
 
         D_tot = D_ds@D_obs
@@ -130,7 +141,7 @@ class TrackingController(Controller):
 
         return D_tot
 
-    def update_D_matrix_wrt_both_rot_basis(self, x):
+    def update_D_matrix_wrt_both_ortho_basis(self, x, xdot):
         if not self.obs_dist_list: #no obstacles
             return self.update_D_matrix_wrt_DS(self, x)
         
@@ -176,11 +187,15 @@ class TrackingController(Controller):
         lambda_1 = (1-weight)*self.lambda_DS
         lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
 
+        #if we go away from obs, we relax the stiffness
+        if np.dot(xdot, e2_obs) > 0:
+            lambda_2 = self.lambda_perp
+
         lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
         ret = E@lambda_mat@E_inv
         return ret
 
-    def update_D_matrix_wrt_both_not_orthogonal(self, x):
+    def update_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
         if not self.obs_dist_list: #no obstacles
             return self.update_D_matrix_wrt_DS(self, x)
         
@@ -212,7 +227,7 @@ class TrackingController(Controller):
 
         #building basis matrix
         E = np.array([e1_DS, e2_both]).T #check if good
-        E_inv = np.linalg.inv(E)
+        E_inv = np.linalg.inv(E) 
 
 
         #HERE TEST THINGS
@@ -223,7 +238,12 @@ class TrackingController(Controller):
         #TEST 2 - BETTER
         lambda_1 = self.lambda_DS
         lambda_2 = self.lambda_perp + weight*(mn.LAMBDA_MAX - self.lambda_perp)
+
+        #if we go away from obs, we relax the stiffness
+        if np.dot(xdot, e2_obs) > 0:
+            lambda_2 = self.lambda_perp
         
         lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
         ret = E@lambda_mat@E_inv
         return ret
+
