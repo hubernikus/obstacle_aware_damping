@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
 import datetime
 import os
 
@@ -24,6 +25,7 @@ class CotrolledRobotAnimation(Animator):
         y_lim=[-0.5, 2.5],
         disturbance_scaling = 200.0,
         draw_ideal_traj = False,
+        draw_qolo = False,
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
@@ -47,6 +49,11 @@ class CotrolledRobotAnimation(Animator):
         self.position_list_ideal[:, 0] = robot.x.reshape((mn.DIM,))
 
         self.draw_ideal_traj = draw_ideal_traj
+
+        self.draw_qolo = draw_qolo
+
+        qolo = plt.imread("./Qolo_T_CB_top_bumper.png")
+        self.imagebox = OffsetImage(qolo, zoom = 0.05)
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
@@ -136,13 +143,21 @@ class CotrolledRobotAnimation(Animator):
             )
         
         #actual position is i, futur position is i + 1 (will be plot next cycle)
-        self.ax.plot(
-            self.position_list[0, ii],
-            self.position_list[1, ii],
-            "o",
-            color="#135e08",
-            markersize=12,
-        )
+        if self.draw_qolo:
+            ab = AnnotationBbox(
+                self.imagebox,
+                (self.position_list[0, ii], self.position_list[1, ii]),
+                frameon = False
+            )
+            self.ax.add_artist(ab)
+        else:
+            self.ax.plot(
+                self.position_list[0, ii],
+                self.position_list[1, ii],
+                "o",
+                color="#135e08",
+                markersize=12,
+            )
 
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
