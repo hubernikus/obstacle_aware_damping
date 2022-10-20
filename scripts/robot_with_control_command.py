@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from abc import ABC, abstractmethod
+#from abc import ABC, abstractmethod
 
 #from librairy of lukas : vartools
 from vartools.dynamical_systems import LinearSystem
@@ -17,15 +17,14 @@ from librairies.controller import RegulationController, TrackingController
 from librairies.robot_animation import CotrolledRobotAnimation
 
 from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
+import librairies.magic_numbers_and_enums as mn
 
-#TODO 
-#add magic number for G = np.array([0.0, 0.0]), dim, dt_sim
 
 def run_control_robot():
     dt_simulation = 0.01
 
     #initial condition
-    x_init = np.array([0.3, 0.4])
+    x_init = np.array([-0.5, 0.4])
     xdot_init = np.array([0.0, 0.0])
 
     #setup atractor 
@@ -36,7 +35,7 @@ def run_control_robot():
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.4, 0.4],
-            center_position=np.array([1.0, 0.25]),
+            center_position=np.array([0.0, 0.25]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.1,
             # orientation=10 * pi / 180,
@@ -70,9 +69,11 @@ def run_control_robot():
     #D[1,1] = 1        #less damped in y
 
     #setup of compliance values
-    lambda_DS = 100.0 #must not be > 200 (num error, patch dt smaller)
+    lambda_DS = 200.0 #must not be > 200 (num error, patch dt smaller)
     lambda_perp = 20.0
     lambda_obs_scaling = 20.0 #scaling factor
+    if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs_scaling > mn.LAMBDA_MAX:
+        raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
 
 
     ### ROBOT 1 : tau_c = 0, no command ###
@@ -99,7 +100,6 @@ def run_control_robot():
         xdot = xdot_init, 
         dt = dt_simulation,
         controller = TrackingController(
-            D=D,
             dynamic_avoider = ModulationAvoider(
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
@@ -115,7 +115,7 @@ def run_control_robot():
     my_animation = CotrolledRobotAnimation(
         it_max = 300, #longer animation, default : 100
         dt_simulation = dt_simulation,
-        dt_sleep=0.001,
+        dt_sleep = dt_simulation,
     )
 
     my_animation.setup(

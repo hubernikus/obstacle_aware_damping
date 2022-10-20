@@ -2,27 +2,25 @@ import numpy as np
 
 #my librairies
 from librairies.controller import TrackingController
+import librairies.magic_numbers_and_enums as mn
 
 class Robot:
     """
     Mass point robot 
     """
-    #class variable
-    dim = 2
-
     def __init__(
         self,
-        M = np.eye(dim),
-        C = np.zeros((dim,dim)), #10*np.eye(dim) with damping
-        G = np.zeros(dim),
+        M = np.eye(mn.DIM),
+        C = np.zeros((mn.DIM,mn.DIM)), #10*np.eye(dim) with damping
+        G = np.zeros(mn.DIM),
 
-        tau_c = np.zeros(dim),  #control torque
-        tau_e = np.zeros(dim),  #external disturbance torque
+        tau_c = np.zeros(mn.DIM),  #control torque
+        tau_e = np.zeros(mn.DIM),  #external disturbance torque
 
         controller:TrackingController = None,
 
-        x = np.zeros(dim),      #curent position
-        xdot = np.zeros(dim),   #current velocity
+        x = np.zeros(mn.DIM),      #curent position
+        xdot = np.zeros(mn.DIM),   #current velocity
 
         dt = 0.01
     ):

@@ -24,14 +24,11 @@ class RegulationController(Controller):
     """
     in the form tau_c = G - D*x_dot - K*x , does regulation to 0
     """
-    #class variables
-    dim = 2
-
     def __init__(
         self,
-        D = 10*np.eye(dim), 
-        K = 100*np.eye(dim),
-        G = np.zeros(dim),
+        D = 10*np.eye(mn.DIM), 
+        K = 100*np.eye(mn.DIM),
+        G = np.zeros(mn.DIM),
     ):
         self.D = D
         self.K = K
@@ -47,14 +44,10 @@ class TrackingController(Controller):
     """
     in the form tau_c = G - D(xdot - f_desired(x))
     """
-    #class variables
-    dim = 2
-
     def __init__(
         self,
         dynamic_avoider:ModulationAvoider,
-        D = 10*np.eye(dim),
-        G = np.zeros(dim),
+        G = np.zeros(mn.DIM),
         lambda_DS = 100.0, #to follow DS line
         lambda_perp = 20.0, #compliance perp to DS or obs
         lambda_obs_scaling = 20.0, #scaling factor prop to distance to obstacles, to be stiff
@@ -62,16 +55,17 @@ class TrackingController(Controller):
         
     ):
         self.dynamic_avoider = dynamic_avoider
-        self.D = D
         self.G = G
 
         self.lambda_DS = lambda_DS
         self.lambda_perp = lambda_perp
         self.lambda_obs_scaling = lambda_obs_scaling
 
+        self.D = np.array([[self.lambda_DS, 0.0],[0.0, self.lambda_perp]])
+
         #self.lambda_mat = np.diag(np.array([self.lambda_DS, self.lambda_perp_DS]))
 
-        self.obs_normals_list = np.empty((self.dim, 0))
+        self.obs_normals_list = np.empty((mn.DIM, 0))
         self.obs_dist_list = np.empty(0)
 
         self.type_of_D_matrix = type_of_D_matrix
@@ -95,10 +89,7 @@ class TrackingController(Controller):
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
             D = self.update_D_matrix_wrt_obs()
         elif self.type_of_D_matrix == TypeD.BOTH:
-            start = time.time()
-            D = self.update_D_matrix_wrt_both(x)
-            end = time.time()
-            print(end - start)
+            D = self.update_D_matrix_wrt_both_not_orthogonal(x)
         self.D = D
     
     def update_D_matrix_wrt_DS(self, x):
@@ -129,20 +120,25 @@ class TrackingController(Controller):
 
             return E@lambda_mat@E_inv
 
-    #not used
-    def update_D_matrix_wrt_both_trash(self, x):
+    #not used -> retest
+    def update_D_matrix_wrt_both_mat_mul(self, x):
         D_obs = self.update_D_matrix_wrt_obs()
         D_ds = self.update_D_matrix_wrt_DS(x)
 
-        return D_ds*D_obs
+        D_tot = D_ds@D_obs
+        #D_tot[D_tot > 200.] = 200.
 
-    def update_D_matrix_wrt_both(self, x):
+        return D_tot
+
+    def update_D_matrix_wrt_both_rot_basis(self, x):
         if not self.obs_dist_list: #no obstacles
             return self.update_D_matrix_wrt_DS(self, x)
         
         #DS, attention si /0
         x_dot_des = self.dynamic_avoider.evaluate(x)
         e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+
+        perp_to_e1_DS = np.array([e1_DS[1], -e1_DS[0]])
 
         #obs
         if self.obs_dist_list.shape[0] > 1:
@@ -153,27 +149,81 @@ class TrackingController(Controller):
                 weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
             else:
                 weight = 0
+        
+        perp_to_e2_obs = np.array([e2_obs[1], -e2_obs[0]])
 
         #both
-        perp_to_e1_DS = np.array([e1_DS[1], -e1_DS[0]]) #quel perp prendre ? 
+        #finding closest perpendicular
         if np.dot(e2_obs, perp_to_e1_DS) < 0:
             perp_to_e1_DS = -perp_to_e1_DS
+        elif np.dot(e2_obs, perp_to_e1_DS) == 0:
+            raise NotImplementedError("limit case : ds and normal colinear")
+
+        if np.dot(e1_DS, perp_to_e2_obs) < 0:
+            perp_to_e2_obs = -perp_to_e2_obs
+
+        #weighting to still be about orthonormal ?? 
+        e1_both = weight*perp_to_e2_obs + (1-weight)*e1_DS
+        e1_both = e1_both/np.linalg.norm(e1_both)
 
         e2_both = weight*e2_obs + (1-weight)*perp_to_e1_DS #prob avec le sens
         e2_both = e2_both/np.linalg.norm(e2_both)
             
+        E = np.array([e1_both, e2_both]).T #check if good
+        E_inv = np.linalg.inv(E)
+
+        #check if big enough
+        lambda_1 = (1-weight)*self.lambda_DS
+        lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
+
+        lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
+        ret = E@lambda_mat@E_inv
+        return ret
+
+    def update_D_matrix_wrt_both_not_orthogonal(self, x):
+        if not self.obs_dist_list: #no obstacles
+            return self.update_D_matrix_wrt_DS(self, x)
+        
+        #DS, attention si /0
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+
+        perp_to_e1_DS = np.array([e1_DS[1], -e1_DS[0]])
+
+        #obs
+        if self.obs_dist_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            e2_obs = normal
+            if dist > 0:
+                weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            else:
+                weight = 0
+        
+        #both
+        #finding closest perpendicular
+        if np.dot(e2_obs, perp_to_e1_DS) < 0:
+            perp_to_e1_DS = -perp_to_e1_DS
+        elif np.dot(e2_obs, perp_to_e1_DS) == 0:
+            raise NotImplementedError("limit case : ds and normal colinear")
+
+        #e2 is a combinaison of compliance perp to DS and away from obs
+        e2_both = weight*e2_obs + (1-weight)*perp_to_e1_DS
+
+        #building basis matrix
         E = np.array([e1_DS, e2_both]).T #check if good
         E_inv = np.linalg.inv(E)
 
-        lambda_comp = max(0,
-         self.lambda_obs_scaling/dist - self.lambda_obs_scaling/mn.DIST_CRIT ) + self.lambda_perp
-        lambda_comp = min(lambda_comp, mn.LAMBDA_MAX)
-        #check if big enough
-         
 
-        lambda_mat = np.array([[self.lambda_DS, 0], [0, lambda_comp]])
+        #HERE TEST THINGS
+        #TEST 1
+        # lambda_1 = (1-weight)*self.lambda_DS
+        # lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX ## nothing better ?
 
-        return E*lambda_mat*E_inv
-
-
-
+        #TEST 2 - BETTER
+        lambda_1 = self.lambda_DS
+        lambda_2 = self.lambda_perp + weight*(mn.LAMBDA_MAX - self.lambda_perp)
+        
+        lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
+        ret = E@lambda_mat@E_inv
+        return ret

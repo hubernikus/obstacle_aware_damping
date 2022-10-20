@@ -12,20 +12,17 @@ from dynamic_obstacle_avoidance.visualization import plot_obstacles
 
 #my librairies
 from librairies.robot import Robot
+import librairies.magic_numbers_and_enums as mn
 
 class CotrolledRobotAnimation(Animator):
-    #class variables
-    dim = 2
 
     def setup(
         self,
-        #start_position=np.array([-2.5, 0.5]),
-        #start_velocity=np.array([0,0]),
         robot:Robot,
         obstacle_environment:ObstacleContainer,
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
-        disturbance_scaling = 200,
+        disturbance_scaling = 200.0,
         draw_ideal_traj = False,
     ):
         self.x_lim = x_lim
@@ -34,20 +31,20 @@ class CotrolledRobotAnimation(Animator):
         self.robot = robot
         self.obstacle_environment = obstacle_environment
 
-        self.position_list = np.zeros((self.dim, self.it_max + 1))
-        self.position_list[:, 0] = robot.x.reshape((self.dim,))
-        self.velocity_list = np.zeros((self.dim, self.it_max + 1))
-        self.velocity_list[:, 0] = robot.xdot.reshape((self.dim,))
+        self.position_list = np.zeros((mn.DIM, self.it_max + 1))
+        self.position_list[:, 0] = robot.x.reshape((mn.DIM,))
+        self.velocity_list = np.zeros((mn.DIM, self.it_max + 1))
+        self.velocity_list[:, 0] = robot.xdot.reshape((mn.DIM,))
 
-        self.disturbance_scaling = disturbance_scaling
-        self.disturbance_list = np.empty((self.dim, 0))
-        self.disturbance_pos_list = np.empty((self.dim, 0))
+        self.disturbance_list = np.empty((mn.DIM, 0))
+        self.disturbance_pos_list = np.empty((mn.DIM, 0))
         self.new_disturbance = False
         self.x_press_disturbance = None
         self.y_press_disturbance = None
+        self.disturbance_scaling = disturbance_scaling
 
-        self.position_list_ideal = np.zeros((self.dim, self.it_max + 1))
-        self.position_list_ideal[:, 0] = robot.x.reshape((self.dim,))
+        self.position_list_ideal = np.zeros((mn.DIM, self.it_max + 1))
+        self.position_list_ideal[:, 0] = robot.x.reshape((mn.DIM,))
 
         self.draw_ideal_traj = draw_ideal_traj
 
@@ -66,26 +63,30 @@ class CotrolledRobotAnimation(Animator):
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:
             #bizarre line, recheck append
-            self.disturbance_pos_list = np.append(self.disturbance_pos_list, 
-                                                  self.position_list[:,ii].reshape((self.dim, 1)), axis = 1)
+            self.disturbance_pos_list = np.append(
+                self.disturbance_pos_list, 
+                self.position_list[:,ii].reshape((mn.DIM, 1)), axis = 1
+            )
             self.new_disturbance = False
         
         #get the normal + distance of the obstacles for the D_matrix of the controller
-        self.robot.controller.obs_normals_list = np.empty((self.dim, 0))
+        self.robot.controller.obs_normals_list = np.empty((mn.DIM, 0))
         self.robot.controller.obs_dist_list =np.empty(0)
 
         for obs in self.obstacle_environment:
             self.robot.controller.obs_normals_list = np.append(
                 self.robot.controller.obs_normals_list,
                 obs.get_normal_direction(
-                    self.position_list[:, ii], in_obstacle_frame = False
-                ).reshape(self.dim, 1),
+                    self.position_list[:, ii],
+                    in_obstacle_frame = False
+                ).reshape(mn.DIM, 1),
                 axis=1
             )
             self.robot.controller.obs_dist_list = np.append(
                 self.robot.controller.obs_dist_list,
                 obs.get_distance_to_surface(
-                    self.position_list[:, ii], in_obstacle_frame = False
+                    self.position_list[:, ii],
+                    in_obstacle_frame = False
                 )
             )
             #print(obs.get_distance_to_surface(self.position_list[:, ii], in_obstacle_frame = False))
@@ -121,14 +122,19 @@ class CotrolledRobotAnimation(Animator):
             self.ax.plot(
                 self.position_list_ideal[0, :ii], 
                 self.position_list_ideal[1, :ii], 
-                ":", color="#000000"
+                ":", color="#000000",
+                label= "Ideal trajectory"
             )
 
         #past trajectory - in green
         if ii >= 1: #not first iter
             self.ax.plot(
-                self.position_list[0, :(ii - 1)], self.position_list[1, :(ii - 1)], ":", color="#135e08"
+                self.position_list[0, :(ii - 1)], 
+                self.position_list[1, :(ii - 1)], 
+                ":", color="#135e08",
+                label= "Real trajectory"
             )
+        
         #actual position is i, futur position is i + 1 (will be plot next cycle)
         self.ax.plot(
             self.position_list[0, ii],
@@ -137,11 +143,11 @@ class CotrolledRobotAnimation(Animator):
             color="#135e08",
             markersize=12,
         )
+
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
 
         #atractor position
-
         atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
         self.ax.plot(
             atractor[0],
@@ -161,11 +167,13 @@ class CotrolledRobotAnimation(Animator):
 
         #disturbance drawing, bizzare lines, recheck, magic numbers ??
         for  disturbance, disturbance_pos in zip(self.disturbance_list.transpose(),
-                                                 self.disturbance_pos_list.transpose()): #transpose ??
+                                                 self.disturbance_pos_list.transpose()):
             self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
                           disturbance[0]/500.0, disturbance[1]/500.0,
-                          width=self.disturbance_scaling/10000.0,
+                          width=0.02,
                           color= "r")
+        
+        plt.legend()
 
 
     #overwrite key detection of Animator -> not use anymore
@@ -277,16 +285,14 @@ class CotrolledRobotAnimation(Animator):
                     self.it_count += 1
 
     def record_click_coord(self, event):
-        #print("press ", event.xdata, event.ydata)
         self.x_press_disturbance, self.y_press_disturbance = event.xdata, event.ydata
 
     def add_disturbance(self, event):
-        #print("release : ", event.xdata, event.ydata)
         disturbance = np.array([event.xdata - self.x_press_disturbance,
                                 event.ydata - self.y_press_disturbance])*self.disturbance_scaling
         if np.linalg.norm(disturbance) < 10.0:
             return
         #print("disturbance : ", disturbance)
         self.robot.tau_e = disturbance
-        self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.dim,1), axis=1)
+        self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
         self.new_disturbance = True
