@@ -37,7 +37,7 @@ def run_control_robot():
             axes_length=[0.6, 0.6],
             center_position=np.array([0.0, 0.25]),
             # center_position=np.array([0.9, 0.25]),
-            margin_absolut=0.1,
+            margin_absolut=0.15,
             # orientation=10 * pi / 180,
             #linear_velocity = np.array([0.0, 1.0]),
             tail_effect=False,
@@ -124,6 +124,7 @@ def run_control_robot():
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
         draw_ideal_traj = True,
+        draw_qolo = True
     )
 
     my_animation.run(save_animation=False)
