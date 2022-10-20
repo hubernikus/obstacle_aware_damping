@@ -25,6 +25,7 @@ class Robot:
         dt = 0.01
     ):
         self.M = M
+        self.M_inv = np.linalg.inv(self.M)
         self.C = C
         self.G = G
 
@@ -37,15 +38,6 @@ class Robot:
 
         self.tau_c = tau_c
         self.tau_e = tau_e
-
-    def Func_dyn(self, pos, vel, time): 
-        """
-        Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
-        Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
-        /!\ it is assumed that there is no coupling, i.e. M is diagonal
-        """
-        return np.divide((self.tau_c + self.tau_e - self.G - self.C@vel),
-                          np.diag(self.M))
 
 
     def simulation_step(self):
@@ -61,10 +53,17 @@ class Robot:
 
         #update x and xdot
         self.rk4_step()
+        #self.euler_forward_step()
 
         #reset the disturbance, because taken account of it in rk4_step()
         self.tau_e = np.array([0.0, 0.0])
 
+    def Func_dyn(self, pos, vel, time): 
+        """
+        Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
+        Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
+        """
+        return (self.tau_c + self.tau_e - self.G - self.C@vel)@self.M_inv
 
     def rk4_step(self):
         """
@@ -87,3 +86,15 @@ class Robot:
         #update of the state
         self.x += (m1 + 2*m2 + 2*m3 + m4)/6
         self.xdot += (k1 + 2*k2 + 2*k3 + k4)/6
+
+    def euler_forward_step(self):
+        t = 0 #not used
+
+        m1 = self.dt*self.xdot
+        k1 = self.dt*self.Func_dyn(self.x, self.xdot, t)
+
+        #update of the state
+        self.x += m1
+        self.xdot += k1
+    
+
