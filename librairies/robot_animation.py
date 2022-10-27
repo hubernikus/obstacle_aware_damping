@@ -67,6 +67,9 @@ class CotrolledRobotAnimation(Animator):
         # Update obstacles
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
+        #add artificial disturbances
+        self.artificial_disturbances(ii)
+
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:
             #bizarre line, recheck append
@@ -123,6 +126,10 @@ class CotrolledRobotAnimation(Animator):
         ################
         ### PLOTTING ###
         ################
+        
+        #juste for video recording syncronisation purposes
+        if ii == 5:
+            self.ax.plot(0.,0.,"o", color="r", markersize=20,)
 
         #ideal trajectory - in black
         if self.draw_ideal_traj:
@@ -311,3 +318,25 @@ class CotrolledRobotAnimation(Animator):
         self.robot.tau_e = disturbance
         self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
         self.new_disturbance = True
+
+    def artificial_disturbances(self, ii):
+        if ii == 25:
+            disturbance = np.array([3.,0.])*self.disturbance_scaling
+            self.robot.tau_e = disturbance
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.new_disturbance = True
+        if ii == 80:
+            disturbance = np.array([2.,-4.])*self.disturbance_scaling
+            self.robot.tau_e = disturbance
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.new_disturbance = True
+        if ii == 90:
+            disturbance = np.array([2.,-4.])*self.disturbance_scaling
+            self.robot.tau_e = disturbance
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.new_disturbance = True
+        if ii == 140:
+            disturbance = np.array([2.,1])*self.disturbance_scaling
+            self.robot.tau_e = disturbance
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.new_disturbance = True

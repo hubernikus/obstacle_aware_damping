@@ -24,7 +24,7 @@ def run_control_robot():
     dt_simulation = 0.01
 
     #initial condition
-    x_init = np.array([-0.7, 0.0])
+    x_init = np.array([-2.0, 0.3]) 
     xdot_init = np.array([0.0, 0.0])
 
     #setup atractor 
@@ -107,7 +107,7 @@ def run_control_robot():
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs_scaling = lambda_obs_scaling,
-            type_of_D_matrix = TypeD.OBS_PASSIVITY, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY orTypeD.BOTH
+            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY orTypeD.BOTH
         ),
     )
 
@@ -123,7 +123,7 @@ def run_control_robot():
         obstacle_environment = obstacle_environment,
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
-        draw_ideal_traj = True,
+        draw_ideal_traj = True, 
         draw_qolo = True
     )
 

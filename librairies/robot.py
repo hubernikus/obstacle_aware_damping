@@ -59,7 +59,7 @@ class Robot:
         # i.e. disturbance are ponctual, only applied once to the system
         self.tau_e = np.array([0.0, 0.0])
 
-    def Func_dyn(self, pos, vel, time): 
+    def func_dyn(self, pos, vel, time): 
         """
         Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
         Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
@@ -73,16 +73,16 @@ class Robot:
         t = 0 #time not used
 
         m1 = self.dt*self.xdot
-        k1 = self.dt*self.Func_dyn(self.x, self.xdot, t)  #(x, v, t)
+        k1 = self.dt*self.func_dyn(self.x, self.xdot, t)  #(x, v, t)
 
         m2 = self.dt*(self.xdot + 0.5*k1)
-        k2 = self.dt*self.Func_dyn(self.x+0.5*m1, self.xdot+0.5*k1, t+0.5*self.dt)
+        k2 = self.dt*self.func_dyn(self.x+0.5*m1, self.xdot+0.5*k1, t+0.5*self.dt)
 
         m3 = self.dt*(self.xdot + 0.5*k2)
-        k3 = self.dt*self.Func_dyn(self.x+0.5*m2, self.xdot+0.5*k2, t+0.5*self.dt)
+        k3 = self.dt*self.func_dyn(self.x+0.5*m2, self.xdot+0.5*k2, t+0.5*self.dt)
 
         m4 = self.dt*(self.xdot + k3)
-        k4 = self.dt*self.Func_dyn(self.x+m3, self.xdot+k3, t+self.dt)
+        k4 = self.dt*self.func_dyn(self.x+m3, self.xdot+k3, t+self.dt)
 
         #update of the state
         self.x += (m1 + 2*m2 + 2*m3 + m4)/6
@@ -92,7 +92,7 @@ class Robot:
         t = 0 #not used
 
         m1 = self.dt*self.xdot
-        k1 = self.dt*self.Func_dyn(self.x, self.xdot, t)
+        k1 = self.dt*self.func_dyn(self.x, self.xdot, t)
 
         #update of the state
         self.x += m1
