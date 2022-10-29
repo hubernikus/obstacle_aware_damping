@@ -107,7 +107,7 @@ def run_control_robot():
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs_scaling = lambda_obs_scaling,
-            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY orTypeD.BOTH
+            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
         ),
     )
 

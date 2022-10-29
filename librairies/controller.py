@@ -84,6 +84,9 @@ class TrackingController(Controller):
         return tau_c
 
     def update_D_matrix(self, x, xdot):
+        # if np.linalg.norm(self.dynamic_avoider.evaluate(x)) < mn.EPS_CONVERGENCE:
+        #     return
+
         if self.type_of_D_matrix == TypeD.DS_FOLLOWING:
             D = self.compute_D_matrix_wrt_DS(x)
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
@@ -91,52 +94,70 @@ class TrackingController(Controller):
         elif self.type_of_D_matrix == TypeD.BOTH:
             D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
 
-        #improve stability at atractor
+        #improve stability at atractor, not recompute always D???
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
-            D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
+            #D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
+            return
 
+        #update the damping matrix
         self.D = D
 
     
     def compute_D_matrix_wrt_DS(self, x):
+        #get desired velocity 
         x_dot_des = self.dynamic_avoider.evaluate(x)
+
+        #construct the basis matrix, align to the DS direction 
         E = get_orthogonal_basis(x_dot_des)
-        E_inv = np.linalg.inv(E)      #inv (and not transp.) bc not sure to be always orthonormal
+        E_inv = np.linalg.inv(E)
+
+        #contruct the matrix containing the damping coefficient along selective directions
         lambda_mat = np.array([[self.lambda_DS, 0.0], [0.0, self.lambda_perp]])
-        return E@lambda_mat@E_inv
+
+        #compose the damping matrix
+        D = E@lambda_mat@E_inv
+        return D
 
     def compute_D_matrix_wrt_obs(self, xdot):
-        if not self.obs_dist_list: #no obstacles
+        #if there is no obstacles, we just keep D as it is
+        if not self.obs_dist_list:
             return self.D
 
+        #not yet for >1 obstacle
         if self.obs_dist_list.shape[0] > 1:
             raise NotImplementedError("passivity for obs only for 1 obs")
         
+        #get the normal and compute the weight of the obstacle
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            #only implemented for 1 obs
-            if dist <= 0: #if dist <0 where IN the obs
+            #if dist <0 where IN the obs
+            if dist <= 0: 
                 return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
             weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+
+            #e2 is align with the normal
             e2 = normal
 
+        #construct the basis matrix, align with the normal of the obstacle
         e1 = np.array([e2[1], -e2[0]])
         E = np.array([e1, e2]).T
-        #E[:,[0,1]] = E[:,[1,0]]
         E_inv = np.linalg.inv(E)
 
+        #compute the damping coeficients along selective directions
+        lambda_1 = self.lambda_perp
         lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2) > 0:
             lambda_2 = self.lambda_perp
 
-        lambda_mat = np.array([[self.lambda_perp, 0.0], [0.0, lambda_2]])
+        #contruct the matrix containing the damping coefficient along selective directions
+        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         
-        #limit to avoid num error w/ rk4
-        #lambda_mat[lambda_mat > mn.LAMBDA_MAX] = mn.LAMBDA_MAX 
-        
-
-        return E@lambda_mat@E_inv
+        #compose the damping matrix
+        D = E@lambda_mat@E_inv
+        return D
 
     #not used -> retest
     def compute_D_matrix_wrt_both_mat_mul(self, x, xdot):
@@ -149,102 +170,63 @@ class TrackingController(Controller):
         return D_tot
 
     def compute_D_matrix_wrt_both_ortho_basis(self, x, xdot):
-        if not self.obs_dist_list: #no obstacles
+        #if there is no obstacles, we want D to be stiff w.r.t. the DS
+        if not self.obs_dist_list:
             return self.compute_D_matrix_wrt_DS(x)
         
-        #DS, attention si /0
-        x_dot_des = self.dynamic_avoider.evaluate(x)
-        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+        #return the vectors of the basis of the DS and the obstacle + the weight associate with the obstacle
+        e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
 
-        perp_to_e1_DS = np.array([e1_DS[1], -e1_DS[0]])
-
-        #obs
-        if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
-        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            e2_obs = normal
-            if dist > 0: #we're in the obs
-                weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
-            else:
-                weight = 0
-        
-        # voluntary construct in the other dir as ds
-        perp_to_e2_obs = np.array([-e2_obs[1], e2_obs[0]])
-
-        #both
-        #finding closest perpendicular
-        if np.dot(e2_obs, perp_to_e1_DS) < 0:
-            perp_to_e1_DS = -perp_to_e1_DS
-
-        if np.dot(e1_DS, perp_to_e2_obs) < 0:
-            perp_to_e2_obs = -perp_to_e2_obs
-
-        #weighting to still be about orthonormal ?? 
-        e1_both = weight*perp_to_e2_obs + (1-weight)*e1_DS
+        #we construct a new basis which is always othtonormal but "rotates" based of weight
+        e1_both = weight*e1_obs + (1-weight)*e1_DS
         e1_both = e1_both/np.linalg.norm(e1_both)
 
-        e2_both = weight*e2_obs + (1-weight)*perp_to_e1_DS #prob avec le sens
+        e2_both = weight*e2_obs + (1-weight)*e2_DS
         e2_both = e2_both/np.linalg.norm(e2_both)
-
-        #print("dot", np.dot(e1_both, e2_both)) -> always 0
 
         #extreme case sould never happen, e1, e2 are suposed to be a orthonormal basis
         if 1 - np.abs(np.dot(e1_both, e2_both)) < 1e-6:
             raise("What did trigger this, it shouldn't")
             
+        #construct the basis matrix
         E = np.array([e1_both, e2_both]).T
         E_inv = np.linalg.inv(E)
 
-        #check if big enough
-        lambda_1 = (1-weight)*self.lambda_DS #good ??
+        #compute the damping coeficients along selective directions
+        lambda_1 = self.lambda_DS #(1-weight)*self.lambda_DS #good ??
         lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2_obs) > 0:
             lambda_2 = self.lambda_perp
 
-        lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
+        #contruct the matrix containing the damping coefficient along selective directions
+        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        
+        #compose the damping matrix
         D = E@lambda_mat@E_inv
         return D
 
     def compute_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
-        if not self.obs_dist_list: #no obstacles
+        #if there is no obstacles, we want D to be stiff w.r.t. the DS
+        if not self.obs_dist_list:
             return self.compute_D_matrix_wrt_DS(x)
         
-        #DS, attention si /0
-        x_dot_des = self.dynamic_avoider.evaluate(x)
-        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
-
-        perp_to_e1_DS = np.array([e1_DS[1], -e1_DS[0]])
-
-        #obs
-        if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
-        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            e2_obs = normal
-            if dist > 0:
-                weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
-            else:
-                weight = 0
-        
-        #both
-        #finding closest perpendicular
-        if np.dot(e2_obs, perp_to_e1_DS) < 0:
-            perp_to_e1_DS = -perp_to_e1_DS
+        #return the vectors of the basis of the DS and the obstacle + the weight associate with the obstacle
+        e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
 
         #e2 is a combinaison of compliance perp to DS and away from obs
-        e2_both = weight*e2_obs + (1-weight)*perp_to_e1_DS
+        e2_both = weight*e2_obs + (1-weight)*e2_DS
 
-        #extreme case were we are on the boundary of obs + exactly at the saddle point of 
+        # extreme case were we are on the boundary of obs + exactly at the saddle point of 
         # the obstacle avoidance ds modulation -> sould never realy happends
         if np.abs(np.dot(e1_DS, e2_both)) == 1:
             warnings.warn("Extreme case")
             return self.D
 
-        #building basis matrix
-        E = np.array([e1_DS, e2_both]).T #check if good
-        E_inv = np.linalg.inv(E) 
-
+        #construct the basis matrix
+        E = np.array([e1_DS, e2_both]).T
+        E_inv = np.linalg.inv(E)
 
         #HERE TEST THINGS
         #TEST 1
@@ -252,6 +234,7 @@ class TrackingController(Controller):
         # lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX ## nothing better ?
 
         #TEST 2 - BETTER
+        #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS
         lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
 
@@ -260,6 +243,52 @@ class TrackingController(Controller):
             lambda_2 = self.lambda_perp
             pass
         
-        lambda_mat = np.array([[lambda_1, 0], [0, lambda_2]])
+        #contruct the matrix containing the damping coefficient along selective directions
+        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        
+        #compose the damping matrix
         D = E@lambda_mat@E_inv
         return D
+
+    def compute_basis_DS_obs_and_weight(self, x):
+        #get desired velocity
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+
+        #if the desired velocity is too small, we risk numerical issue
+        if np.linalg.norm(x_dot_des) < mn.EPSILON:
+            #we just return the previous damping matrix
+            return self.D
+        
+        # compute the basis of the DS : [e1_DS, e2_DS]
+        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+        e2_DS = np.array([e1_DS[1], -e1_DS[0]])
+
+        #not yet for >1 obstacle
+        if self.obs_dist_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+
+        #get the normal and compute the weight of the obstacle
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            #if dist <0 where IN the obs
+            if dist <= 0: 
+                return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
+            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+
+            #e2_obs is align to the normal
+            e2_obs = normal
+
+        # construct the basis align with the normal of the obstacle
+        # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
+        # this play a crucial role for the limit case
+        e1_obs = np.array([-e2_obs[1], e2_obs[0]])
+
+        # we want both basis to be cointained in the same half-plane
+        # we have this liberty since we always have 2 choice when choosing a perpendiular
+        if np.dot(e2_obs, e2_DS) < 0:
+            e2_DS = -e2_DS
+        if np.dot(e1_DS, e1_obs) < 0:
+            e1_obs = -e1_obs
+
+        return e1_DS, e2_DS, e1_obs, e2_obs, weight

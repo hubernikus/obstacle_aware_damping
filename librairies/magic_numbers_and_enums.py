@@ -14,6 +14,7 @@ MAX_TAU_C = 500.0 #max possible torque
 
 #EVERYTHING
 DIM = 2
+EPSILON = 1e-6
 
 
 ##################

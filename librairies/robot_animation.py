@@ -68,7 +68,7 @@ class CotrolledRobotAnimation(Animator):
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
         #add artificial disturbances
-        self.artificial_disturbances(ii)
+        #self.artificial_disturbances(ii)
 
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:
@@ -131,12 +131,12 @@ class CotrolledRobotAnimation(Animator):
         if ii == 5:
             self.ax.plot(0.,0.,"o", color="r", markersize=20,)
 
-        #ideal trajectory - in black
+        #ideal trajectory - in light blue
         if self.draw_ideal_traj:
             self.ax.plot(
                 self.position_list_ideal[0, :ii], 
                 self.position_list_ideal[1, :ii], 
-                ":", color="#000000",
+                ":", color="#0000FF",
                 label= "Ideal trajectory"
             )
 
