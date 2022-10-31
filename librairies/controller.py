@@ -70,17 +70,58 @@ class TrackingController(Controller):
 
         self.type_of_D_matrix = type_of_D_matrix
 
+        #energy tank
+        self.s = mn.S_MAX
+
+
+    #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
+    # D must not be updated yet
+    def update_energy_tank(self, x, xdot:np.array, dt):
+        _, f_r = self.decomp_f()
+        z = xdot.T@f_r
+        alpha = self.get_alpha(self.s)
+        beta_s = self.get_beta_s()
+
+        #using euler 1st order
+        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*z
+        self.s += dt*sdot
+    
+    def decomp_f(self):
+        f_c = self.dynamic_avoider.initial_dynamics.evaluate() #pas le bon type
+        f_r = self.dynamic_avoider.evaluate() - f_c
+        return f_c, f_r
+
+    def get_alpha(self, s):
+        return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, s)
+
+    def get_beta_s(self, s, z):
+        ret = 1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, s) \
+                - smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, s)
+        return ret
+
+    def get_beta_r(self, s, z):
+        ret = (1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, s)) \
+              * (1 - (smooth_step(-mn.DELTA_Z, 0, z)* \
+                     smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, s)))
+        return ret
+
 
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the DS-tracking controller,
         """
-        x_dot_des = self.dynamic_avoider.evaluate(x)
-        tau_c = self.G - self.D@(xdot - x_dot_des)
+        #x_dot_des = self.dynamic_avoider.evaluate(x)
+        #tau_c = self.G - self.D@(xdot - x_dot_des)
+        f_c, f_r = self.decomp_f()
+        z = xdot.T@f_r
+        beta_r = self.get_beta_r(self.s, z)
 
-        #physical constrains, value ?
-        tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
-        tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
+        tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+
+
+        #physical constrains, value ? -> laisser ???
+        # tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
+        # tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
         return tau_c
 
     def update_D_matrix(self, x, xdot):
@@ -292,3 +333,19 @@ class TrackingController(Controller):
             e1_obs = -e1_obs
 
         return e1_DS, e2_DS, e1_obs, e2_obs, weight
+
+
+
+#work on passive energy storage : based on the paper
+
+#helper smooth step functions
+def smooth_step(a,b,x):
+    if x < a: 
+        return 0
+    if x > b:
+        return 1
+    else:
+        return 6*((x-a)/(b-a))**5 - 15*((x-a)/(b-a))**4 + 10*((x-a)/(b-a))**3
+
+def smooth_step_neg(a,b,x):
+    return 1 - smooth_step(a,b,x)

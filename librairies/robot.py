@@ -45,6 +45,9 @@ class Robot:
         Performs one time step of the dynamics of the robot, update variables
         """
 
+        #udpate the energy tank
+        self.controller.update_energy_tank(self.x, self.xdot, self.dt)
+
         #update of D matrix to follow DS or passive to obs
         self.controller.update_D_matrix(self.x, self.xdot)
 
