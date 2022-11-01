@@ -15,6 +15,9 @@ from dynamic_obstacle_avoidance.visualization import plot_obstacles
 from librairies.robot import Robot
 import librairies.magic_numbers_and_enums as mn
 
+#just for plotting : global
+s_list = []
+
 class CotrolledRobotAnimation(Animator):
 
     def setup(
@@ -69,6 +72,9 @@ class CotrolledRobotAnimation(Animator):
 
         #add artificial disturbances
         #self.artificial_disturbances(ii)
+
+        #just for plotting storage s -> delete when no bug
+        s_list.append(self.robot.controller.s)
 
         #record position of the new disturbance added with key pressed
         if self.new_disturbance:

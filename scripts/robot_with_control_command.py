@@ -19,6 +19,8 @@ from librairies.robot_animation import CotrolledRobotAnimation
 from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
 import librairies.magic_numbers_and_enums as mn
 
+#just for plotting : global var, remoove when no bug
+from librairies.robot_animation import s_list
 
 def run_control_robot():
     dt_simulation = 0.01
@@ -130,9 +132,15 @@ def run_control_robot():
     my_animation.run(save_animation=False)
 
 
-
 if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
     run_control_robot()
+
+    #just for plotting s tank
+    fig, ax = plt.subplots()
+    x = np.linspace(0, len(s_list), len(s_list))
+    plt.plot(x, s_list)
+    plt.show()
+    pass #add breakpoint here if want to plot s

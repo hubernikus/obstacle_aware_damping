@@ -13,7 +13,7 @@ EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
 MAX_TAU_C = 500.0 #max possible torque
 
 #tank system
-S_MAX = 10
+S_MAX = 1000.0
 DELTA_S = 0.1*S_MAX #smoothness parameter
 DELTA_Z = 0.01      #smoothness parameter
 

@@ -71,38 +71,38 @@ class TrackingController(Controller):
         self.type_of_D_matrix = type_of_D_matrix
 
         #energy tank
-        self.s = mn.S_MAX
+        self.s = mn.S_MAX/2
 
 
     #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
     # D must not be updated yet
     def update_energy_tank(self, x, xdot:np.array, dt):
-        _, f_r = self.decomp_f()
+        _, f_r = self.decomp_f(x)
         z = xdot.T@f_r
-        alpha = self.get_alpha(self.s)
-        beta_s = self.get_beta_s()
+        alpha = self.get_alpha()
+        beta_s = self.get_beta_s(z)
 
         #using euler 1st order
         sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*z
         self.s += dt*sdot
     
-    def decomp_f(self):
-        f_c = self.dynamic_avoider.initial_dynamics.evaluate() #pas le bon type
-        f_r = self.dynamic_avoider.evaluate() - f_c
+    def decomp_f(self, x):
+        f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #pas le bon type
+        f_r = self.dynamic_avoider.evaluate(x) - f_c
         return f_c, f_r
 
-    def get_alpha(self, s):
-        return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, s)
+    def get_alpha(self):
+        return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s)
 
-    def get_beta_s(self, s, z):
-        ret = 1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, s) \
-                - smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, s)
+    def get_beta_s(self, z):
+        ret = 1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
+                - smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
         return ret
 
-    def get_beta_r(self, s, z):
-        ret = (1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, s)) \
+    def get_beta_r(self, z):
+        ret = (1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
               * (1 - (smooth_step(-mn.DELTA_Z, 0, z)* \
-                     smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, s)))
+                     smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
         return ret
 
 
@@ -110,18 +110,26 @@ class TrackingController(Controller):
         """
         return the torque control command of the DS-tracking controller,
         """
-        #x_dot_des = self.dynamic_avoider.evaluate(x)
-        #tau_c = self.G - self.D@(xdot - x_dot_des)
-        f_c, f_r = self.decomp_f()
-        z = xdot.T@f_r
-        beta_r = self.get_beta_r(self.s, z)
+        with_E_storage = False
+        if not with_E_storage:
+            x_dot_des = self.dynamic_avoider.evaluate(x)
+            tau_c = self.G - self.D@(xdot - x_dot_des)
 
-        tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+            #physical constrains, value ? -> laisser ???
+            tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
+            tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
+        else:
+            f_c, f_r = self.decomp_f(x)
+            z = xdot.T@f_r
+            beta_r = self.get_beta_r(z)
+
+            tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+
+            #physical constrains, value ? -> laisser ???
+            tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
+            tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
 
 
-        #physical constrains, value ? -> laisser ???
-        # tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
-        # tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
         return tau_c
 
     def update_D_matrix(self, x, xdot):
@@ -216,7 +224,47 @@ class TrackingController(Controller):
             return self.compute_D_matrix_wrt_DS(x)
         
         #return the vectors of the basis of the DS and the obstacle + the weight associate with the obstacle
-        e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
+        #e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
+
+        #get desired velocity
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+
+        #if the desired velocity is too small, we risk numerical issue
+        if np.linalg.norm(x_dot_des) < mn.EPSILON:
+            #we just return the previous damping matrix
+            return self.D
+        
+        # compute the basis of the DS : [e1_DS, e2_DS]
+        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+        e2_DS = np.array([e1_DS[1], -e1_DS[0]])
+
+        #not yet for >1 obstacle
+        if self.obs_dist_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+
+        #get the normal and compute the weight of the obstacle
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            #if dist <0 where IN the obs
+            if dist <= 0: 
+                return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
+            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+
+            #e2_obs is align to the normal
+            e2_obs = normal
+
+        # construct the basis align with the normal of the obstacle
+        # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
+        # this play a crucial role for the limit case
+        e1_obs = np.array([-e2_obs[1], e2_obs[0]])
+
+        # we want both basis to be cointained in the same half-plane
+        # we have this liberty since we always have 2 choice when choosing a perpendiular
+        if np.dot(e2_obs, e2_DS) < 0:
+            e2_DS = -e2_DS
+        if np.dot(e1_DS, e1_obs) < 0:
+            e1_obs = -e1_obs
 
         #we construct a new basis which is always othtonormal but "rotates" based of weight
         e1_both = weight*e1_obs + (1-weight)*e1_DS
@@ -254,7 +302,47 @@ class TrackingController(Controller):
             return self.compute_D_matrix_wrt_DS(x)
         
         #return the vectors of the basis of the DS and the obstacle + the weight associate with the obstacle
-        e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
+        #e1_DS, e2_DS, e1_obs, e2_obs, weight = self.compute_basis_DS_obs_and_weight(x)
+
+        #get desired velocity
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+
+        #if the desired velocity is too small, we risk numerical issue
+        if np.linalg.norm(x_dot_des) < mn.EPSILON:
+            #we just return the previous damping matrix
+            return self.D
+        
+        # compute the basis of the DS : [e1_DS, e2_DS]
+        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+        e2_DS = np.array([e1_DS[1], -e1_DS[0]])
+
+        #not yet for >1 obstacle
+        if self.obs_dist_list.shape[0] > 1:
+            raise NotImplementedError("passivity for obs only for 1 obs")
+
+        #get the normal and compute the weight of the obstacle
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            #if dist <0 where IN the obs
+            if dist <= 0: 
+                return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
+            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+
+            #e2_obs is align to the normal
+            e2_obs = normal
+
+        # construct the basis align with the normal of the obstacle
+        # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
+        # this play a crucial role for the limit case
+        e1_obs = np.array([-e2_obs[1], e2_obs[0]])
+
+        # we want both basis to be cointained in the same half-plane
+        # we have this liberty since we always have 2 choice when choosing a perpendiular
+        if np.dot(e2_obs, e2_DS) < 0:
+            e2_DS = -e2_DS
+        if np.dot(e1_DS, e1_obs) < 0:
+            e1_obs = -e1_obs
 
         #e2 is a combinaison of compliance perp to DS and away from obs
         e2_both = weight*e2_obs + (1-weight)*e2_DS
@@ -290,7 +378,9 @@ class TrackingController(Controller):
         #compose the damping matrix
         D = E@lambda_mat@E_inv
         return D
+    
 
+    #not used
     def compute_basis_DS_obs_and_weight(self, x):
         #get desired velocity
         x_dot_des = self.dynamic_avoider.evaluate(x)
