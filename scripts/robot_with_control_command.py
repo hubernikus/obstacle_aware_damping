@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-#from abc import ABC, abstractmethod
-
 #from librairy of lukas : vartools
 from vartools.dynamical_systems import LinearSystem
 
@@ -23,7 +21,7 @@ import librairies.magic_numbers_and_enums as mn
 from librairies.robot_animation import s_list
 
 def run_control_robot():
-    dt_simulation = 0.01
+    dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
     #initial condition
     x_init = np.array([-2.0, 0.3]) 
@@ -63,15 +61,12 @@ def run_control_robot():
     initial_dynamics = LinearSystem(
         attractor_position = attractor_position,
         maximum_velocity=3,
-        distance_decrease=0.3,
+        distance_decrease=0.5, #if too small, could lead to instable around atractor 
     )
 
-    #setup of compliance matrix D, not used anymore
-    D = 10*np.eye(2) #damping matrix
-    #D[1,1] = 1        #less damped in y
-
     #setup of compliance values
-    lambda_DS = 200.0 #must not be > 200 (num error, patch dt smaller)
+    lambda_DS = 100.0 #must not be > 200 (num error, patch dt smaller) -> 200 makes xdot varies too much
+                      # bc in tau_c compute -D@xdot becomes too big  + much more stable at atrat.
     lambda_perp = 20.0
     lambda_obs_scaling = 20.0 #scaling factor
     if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs_scaling > mn.LAMBDA_MAX:
@@ -87,6 +82,7 @@ def run_control_robot():
 
     ### ROBOT 2 : tau_c regulates robot to origin ###
     #--> no more suported
+    D = 10*np.eye(2) #damping matrix
     robot_regulated = Robot(
         x = x_init, 
         xdot = xdot_init, 
@@ -115,7 +111,7 @@ def run_control_robot():
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
-        it_max = 300, #longer animation, default : 100
+        it_max = 300, #longer animation
         dt_simulation = dt_simulation,
         dt_sleep = dt_simulation,
     )
@@ -126,7 +122,7 @@ def run_control_robot():
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
         draw_ideal_traj = True, 
-        draw_qolo = True
+        draw_qolo = True,
     )
 
     my_animation.run(save_animation=False)
@@ -138,7 +134,7 @@ if (__name__) == "__main__":
 
     run_control_robot()
 
-    #just for plotting s tank
+    #just for plotting s tank, remoove when done, or implemment better
     fig, ax = plt.subplots()
     x = np.linspace(0, len(s_list), len(s_list))
     plt.plot(x, s_list)

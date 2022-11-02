@@ -72,37 +72,48 @@ class TrackingController(Controller):
 
         #energy tank
         self.s = mn.S_MAX/2
+        self.z = 0 #initialized later
 
 
     #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
     # D must not be updated yet
-    def update_energy_tank(self, x, xdot:np.array, dt):
+    def update_energy_tank(self, x, xdot, dt):
         _, f_r = self.decomp_f(x)
-        z = xdot.T@f_r
+        self.z = xdot.T@f_r
+        
         alpha = self.get_alpha()
-        beta_s = self.get_beta_s(z)
+        beta_s = self.get_beta_s()
 
         #using euler 1st order
-        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*z
+        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
         self.s += dt*sdot
     
     def decomp_f(self, x):
-        f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #pas le bon type
+        f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #unmodulated dynamic : conservative (if DS is lin.)
         f_r = self.dynamic_avoider.evaluate(x) - f_c
         return f_c, f_r
 
     def get_alpha(self):
-        return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s)
+        #return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s) #used in paper
+        #return smooth_step_neg(0, mn.DELTA_S, self.s)
+        return smooth_step_neg(mn.S_MAX/2 - mn.DELTA_S, mn.S_MAX/2 + mn.DELTA_S, self.s)
 
-    def get_beta_s(self, z):
-        ret = 1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
-                - smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
+    def get_beta_s(self):
+        # ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
+        #         - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
+        
+        #modif at second H
+        ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)\
+                - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
         return ret
-
-    def get_beta_r(self, z):
-        ret = (1 - smooth_step(-mn.DELTA_Z, 0, z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
-              * (1 - (smooth_step(-mn.DELTA_Z, 0, z)* \
-                     smooth_step_neg(0, mn.DELTA_Z, z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+    def get_beta_r(self):
+        # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
+        #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
+        #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+        #modif at second H
+        ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)) \
+              * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
+                     smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
         return ret
 
 
@@ -110,7 +121,7 @@ class TrackingController(Controller):
         """
         return the torque control command of the DS-tracking controller,
         """
-        with_E_storage = False
+        with_E_storage = True
         if not with_E_storage:
             x_dot_des = self.dynamic_avoider.evaluate(x)
             tau_c = self.G - self.D@(xdot - x_dot_des)
@@ -120,14 +131,13 @@ class TrackingController(Controller):
             tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
         else:
             f_c, f_r = self.decomp_f(x)
-            z = xdot.T@f_r
-            beta_r = self.get_beta_r(z)
+            beta_r = self.get_beta_r()
 
             tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
 
             #physical constrains, value ? -> laisser ???
-            tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
-            tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
+            # tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
+            # tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
 
 
         return tau_c
