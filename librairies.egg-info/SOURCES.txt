@@ -1,0 +1,12 @@
+README.md
+setup.py
+librairies/controller.py
+librairies/magic_numbers_and_enums.py
+librairies/robot.py
+librairies/robot_animation.py
+librairies.egg-info/PKG-INFO
+librairies.egg-info/SOURCES.txt
+librairies.egg-info/dependency_links.txt
+librairies.egg-info/requires.txt
+librairies.egg-info/top_level.txt
+librairies.egg-info/zip-safe

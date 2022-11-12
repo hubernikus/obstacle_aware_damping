@@ -1,9 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox) #remoove ? 
 import datetime
 import os
+import matplotlib.image as mpimg
+from scipy import ndimage
 
 #librairies of lukas
 from vartools.animator import Animator
@@ -29,6 +31,7 @@ class CotrolledRobotAnimation(Animator):
         disturbance_scaling = 200.0,
         draw_ideal_traj = False,
         draw_qolo = False,
+        rotate_qolo = False
     ):
         self.x_lim = x_lim
         self.y_lim = y_lim
@@ -54,9 +57,13 @@ class CotrolledRobotAnimation(Animator):
         self.draw_ideal_traj = draw_ideal_traj
 
         self.draw_qolo = draw_qolo
+        self.rotate_qolo = rotate_qolo
 
-        qolo = plt.imread("./Qolo_T_CB_top_bumper.png")
-        self.imagebox = OffsetImage(qolo, zoom = 0.05)
+        #qolo = plt.imread("./Qolo_T_CB_top_bumper.png")
+        #self.imagebox = OffsetImage(qolo, zoom = 0.05)
+        self.qolo = mpimg.imread("./Qolo_T_CB_top_bumper_low_qual.png")
+        self.qolo_length_x = mn.QOLO_LENGHT_X
+        self.qolo_length_y = (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
@@ -71,7 +78,7 @@ class CotrolledRobotAnimation(Animator):
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
         #add artificial disturbances
-        #self.artificial_disturbances(ii)
+        self.artificial_disturbances(ii)
 
         #just for plotting storage s -> delete when no bug
         s_list.append(self.robot.controller.s)
@@ -135,7 +142,22 @@ class CotrolledRobotAnimation(Animator):
         
         #juste for video recording syncronisation purposes
         if ii == 5:
-            self.ax.plot(0.,0.,"o", color="r", markersize=20,)
+            #self.ax.plot(0.,0.,"o", color="r", markersize=20,)
+            pass
+
+        #ax settings
+        self.ax.set_xlim(self.x_lim)
+        self.ax.set_ylim(self.y_lim)
+        self.ax.tick_params(
+            axis='both',
+            which='both',
+            bottom=False,
+            top=False,
+            right=False,
+            left=False,
+            labelbottom=False,
+            labelleft=False,
+        )
 
         #ideal trajectory - in light blue
         if self.draw_ideal_traj:
@@ -154,26 +176,6 @@ class CotrolledRobotAnimation(Animator):
                 ":", color="#135e08",
                 label= "Real trajectory"
             )
-        
-        #actual position is i, futur position is i + 1 (will be plot next cycle)
-        if self.draw_qolo:
-            ab = AnnotationBbox(
-                self.imagebox,
-                (self.position_list[0, ii], self.position_list[1, ii]),
-                frameon = False
-            )
-            self.ax.add_artist(ab)
-        else:
-            self.ax.plot(
-                self.position_list[0, ii],
-                self.position_list[1, ii],
-                "o",
-                color="#135e08",
-                markersize=12,
-            )
-
-        self.ax.set_xlim(self.x_lim)
-        self.ax.set_ylim(self.y_lim)
 
         #atractor position
         atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
@@ -200,6 +202,46 @@ class CotrolledRobotAnimation(Animator):
                           disturbance[0]/500.0, disturbance[1]/500.0,
                           width=0.02,
                           color= "r")
+
+        #actual position is i, futur position is i + 1 (will be plot next cycle)
+        if self.draw_qolo:
+            #carefull, rotating slows a lot the animation
+            if self.rotate_qolo:
+                angle_rot = np.arctan2(self.velocity_list[1, ii], self.velocity_list[0, ii])
+                qolo_rot = ndimage.rotate(
+                    self.qolo, 
+                    angle_rot * 180.0 / np.pi, cval=255
+                )
+                lenght_x_rotated = (
+                    np.abs(np.cos(angle_rot)) * self.qolo_length_x + np.abs(np.sin(angle_rot)) \
+                    * self.qolo_length_y
+                )
+                lenght_y_rotated = (
+                    np.abs(np.sin(angle_rot)) * self.qolo_length_x + np.abs(np.cos(angle_rot)) \
+                    * self.qolo_length_y
+                )
+            else:
+                lenght_x_rotated = self.qolo_length_x
+                lenght_y_rotated = self.qolo_length_y
+                qolo_rot = self.qolo
+
+            self.ax.imshow(
+                (qolo_rot*255).astype('uint8'),
+                extent = [
+                    self.position_list[0,ii] - lenght_x_rotated/2,
+                    self.position_list[0,ii] + lenght_x_rotated/2,
+                    self.position_list[1,ii] - lenght_y_rotated/2,
+                    self.position_list[1,ii] + lenght_y_rotated/2,
+                ]
+            )
+        else:
+            self.ax.plot(
+                self.position_list[0, ii],
+                self.position_list[1, ii],
+                "o",
+                color="#135e08",
+                markersize=12,
+            )
         
         plt.legend()
 
@@ -251,7 +293,7 @@ class CotrolledRobotAnimation(Animator):
 
             # Initiate keyboard-actions
             self.fig.canvas.mpl_connect("button_press_event", self.record_click_coord) #modified
-            self.fig.canvas.mpl_connect("button_release_event", self.add_disturbance)  #added
+            self.fig.canvas.mpl_connect("button_release_event", self.add_click_disturbance)  #added
             self.fig.canvas.mpl_connect("key_press_event", self.on_press)
 
             if save_animation:
@@ -315,7 +357,10 @@ class CotrolledRobotAnimation(Animator):
     def record_click_coord(self, event):
         self.x_press_disturbance, self.y_press_disturbance = event.xdata, event.ydata
 
-    def add_disturbance(self, event):
+    def add_click_disturbance(self, event):
+        if event.xdata is None:
+            return
+
         disturbance = np.array([event.xdata - self.x_press_disturbance,
                                 event.ydata - self.y_press_disturbance])*self.disturbance_scaling
         if np.linalg.norm(disturbance) < 10.0:
@@ -327,12 +372,12 @@ class CotrolledRobotAnimation(Animator):
 
     def artificial_disturbances(self, ii):
         if ii == 25:
-            disturbance = np.array([3.,0.])*self.disturbance_scaling
+            disturbance = np.array([-3.,0.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
             self.new_disturbance = True
-        if ii == 80:
-            disturbance = np.array([2.,-4.])*self.disturbance_scaling
+        if ii == 35:
+            disturbance = np.array([-3.,0.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
             self.new_disturbance = True
@@ -341,8 +386,13 @@ class CotrolledRobotAnimation(Animator):
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
             self.new_disturbance = True
-        if ii == 140:
-            disturbance = np.array([2.,1])*self.disturbance_scaling
+        if ii == 100:
+            disturbance = np.array([2.,-4.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
             self.new_disturbance = True
+        # if ii == 140:
+        #     disturbance = np.array([2.,1])*self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+        #     self.new_disturbance = True
