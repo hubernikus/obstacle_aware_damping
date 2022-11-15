@@ -1,4 +1,5 @@
 from enum import Enum, auto
+import numpy as np
 
 ###################
 ## MAGIC NUMBERS ##
@@ -12,6 +13,9 @@ EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
 
 MAX_TAU_C = 500.0 #max possible torque #500 works well, 100 also, but less damped against obs
 
+NOISE_MAGN_POS = 0.25 #0.5 still good
+NOISE_MAGN_VEL = 0 #1 still good
+
 #tank system
 S_MAX = 100.0
 DELTA_S = 0.1*S_MAX #smoothness parameter
@@ -23,6 +27,7 @@ QOLO_LENGHT_X = 0.4
 #EVERYTHING
 DIM = 2
 EPSILON = 1e-6
+G = np.zeros(DIM)
 
 
 ##################

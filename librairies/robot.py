@@ -1,4 +1,5 @@
 import numpy as np
+from time import time
 
 #my librairies
 from librairies.controller import TrackingController
@@ -12,7 +13,6 @@ class Robot:
         self,
         M = np.eye(mn.DIM),
         C = np.zeros((mn.DIM,mn.DIM)), #10*np.eye(dim) with damping
-        G = np.zeros(mn.DIM),
 
         tau_c = np.zeros(mn.DIM),  #control torque
         tau_e = np.zeros(mn.DIM),  #external disturbance torque
@@ -27,7 +27,6 @@ class Robot:
         self.M = M
         self.M_inv = np.linalg.inv(self.M)
         self.C = C
-        self.G = G
 
         self.controller = controller
 
@@ -44,19 +43,37 @@ class Robot:
         """
         Performs one time step of the dynamics of the robot, update variables
         """
+        ##############################################
+        ## MEASUREMENTS, TORQUE COMMAND COMPUTATION ##
+        ##############################################
 
-        #udpate the energy tank
-        self.controller.update_energy_tank(self.x, self.xdot, self.dt)
+        #udpate the energy tank - not used
+        #self.controller.update_energy_tank(self.x, self.xdot, self.dt)
 
+        #measurement of postition and velocity - with noise level
+        x, xdot = self.measure_pos_vel()
+
+        t_now = time()
         #update of D matrix to follow DS or passive to obs
-        self.controller.update_D_matrix(self.x, self.xdot)
+        self.controller.update_D_matrix(x, xdot)
 
         #update tau_c
-        self.tau_c = self.controller.compute_tau_c(self.x, self.xdot)
+        self.tau_c = self.controller.compute_tau_c(x, xdot)
+        t_diff = time() - t_now
+        print(f"time to compute control command: {t_diff}")
 
-        #update x and xdot
+
+        ###########################
+        ## DYNAMICS OF THE ROBOT ##
+        ###########################
+
+        #update x and xdot - the real, bc its robot proper mecanic
         self.rk4_step()
         #self.euler_forward_step()
+
+        ###########
+        ## OTHER ##
+        ###########
 
         #reset the disturbance, because taken account of it in rk4_step() 
         # i.e. disturbance are ponctual, only applied once to the system
@@ -67,7 +84,7 @@ class Robot:
         Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
         Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
         """
-        return (self.tau_c + self.tau_e - self.G - self.C@vel)@self.M_inv
+        return (self.tau_c + self.tau_e - mn.G - self.C@vel)@self.M_inv
 
     def rk4_step(self):
         """
@@ -100,5 +117,8 @@ class Robot:
         #update of the state
         self.x += m1
         self.xdot += k1
-    
 
+    def measure_pos_vel(self):
+        x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,mn.DIM)
+        xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,mn.DIM)
+        return x, xdot

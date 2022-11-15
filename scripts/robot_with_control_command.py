@@ -68,8 +68,8 @@ def run_control_robot():
     lambda_DS = 100.0 #must not be > 200 (num error, patch dt smaller) -> 200 makes xdot varies too much
                       # bc in tau_c compute -D@xdot becomes too big  + much more stable at atrat.
     lambda_perp = 20.0
-    lambda_obs_scaling = 20.0 #scaling factor
-    if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs_scaling > mn.LAMBDA_MAX:
+    lambda_obs = mn.LAMBDA_MAX
+    if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs > mn.LAMBDA_MAX:
         raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
 
 
@@ -104,7 +104,7 @@ def run_control_robot():
             ),
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
-            lambda_obs_scaling = lambda_obs_scaling,
+            lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
             with_E_storage = False
         ),

@@ -78,7 +78,7 @@ class CotrolledRobotAnimation(Animator):
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
         #add artificial disturbances
-        self.artificial_disturbances(ii)
+        #self.artificial_disturbances(ii)
 
         #just for plotting storage s -> delete when no bug
         s_list.append(self.robot.controller.s)
@@ -196,12 +196,20 @@ class CotrolledRobotAnimation(Animator):
         )
 
         #disturbance drawing, bizzare lines, recheck, magic numbers ??
-        for  disturbance, disturbance_pos in zip(self.disturbance_list.transpose(),
-                                                 self.disturbance_pos_list.transpose()):
-            self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
-                          disturbance[0]/500.0, disturbance[1]/500.0,
-                          width=0.02,
-                          color= "r")
+        for  i, (disturbance, disturbance_pos) in enumerate(zip(self.disturbance_list.transpose(),
+                                                 self.disturbance_pos_list.transpose())):
+            #small trick to only label one disturance
+            if i == 0:
+                self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
+                            disturbance[0]/500.0, disturbance[1]/500.0,
+                            width=0.02,
+                            color= "r",
+                            label= "Disturbances",)
+            else : 
+                self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
+                            disturbance[0]/500.0, disturbance[1]/500.0,
+                            width=0.02,
+                            color= "r",)
 
         #actual position is i, futur position is i + 1 (will be plot next cycle)
         if self.draw_qolo:

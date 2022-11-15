@@ -20,6 +20,7 @@ class Controller(ABC):
     def compute_tau_c():
         pass
 
+
 class RegulationController(Controller):
     """
     in the form tau_c = G - D*x_dot - K*x , does regulation to 0
@@ -28,17 +29,16 @@ class RegulationController(Controller):
         self,
         D = 10*np.eye(mn.DIM), 
         K = 100*np.eye(mn.DIM),
-        G = np.zeros(mn.DIM),
     ):
         self.D = D
         self.K = K
-        self.G = G
 
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the regulation controller,
         """
-        return self.G - np.matmul(self.D, xdot) - np.matmul(self.K, x)
+        return mn.G - np.matmul(self.D, xdot) - np.matmul(self.K, x)
+
 
 class TrackingController(Controller):
     """
@@ -48,20 +48,18 @@ class TrackingController(Controller):
     def __init__(
         self,
         dynamic_avoider:ModulationAvoider,
-        G = np.zeros(mn.DIM),
         lambda_DS = 100.0, #to follow DS line
         lambda_perp = 20.0, #compliance perp to DS or obs
-        lambda_obs_scaling = 20.0, #scaling factor prop to distance to obstacles, to be stiff
-        type_of_D_matrix = TypeD.DS_FOLLOWING,
+        lambda_obs = mn.LAMBDA_MAX,
+        type_of_D_matrix = TypeD.BOTH,
         with_E_storage = False,
         
     ):
         self.dynamic_avoider = dynamic_avoider
-        self.G = G
 
         self.lambda_DS = lambda_DS
         self.lambda_perp = lambda_perp
-        self.lambda_obs_scaling = lambda_obs_scaling
+        self.lambda_obs = lambda_obs
 
         self.D = np.array([[self.lambda_DS, 0.0],[0.0, self.lambda_perp]])
 
@@ -75,59 +73,6 @@ class TrackingController(Controller):
         self.s = mn.S_MAX/2
         self.z = 0 #initialized later
 
-
-    #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
-    # D must not be updated yet
-    def update_energy_tank(self, x, xdot, dt):
-
-        if not self.with_E_storage:
-            #avoid useless computation
-            return
-
-        _, f_r = self.decomp_f(x)
-        self.z = xdot.T@f_r
-        
-        alpha = self.get_alpha()
-        beta_s = self.get_beta_s()
-
-        #using euler 1st order
-        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
-        self.s += dt*sdot
-    
-    def decomp_f(self, x):
-        f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #unmodulated dynamic : conservative (if DS is lin.)
-        f_r = self.dynamic_avoider.evaluate(x) - f_c
-        return f_c, f_r
-
-    def get_alpha(self):
-        #return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s) #used in paper
-        #return smooth_step_neg(0, mn.DELTA_S, self.s)
-
-        #centered at S_MAX/2
-        return smooth_step_neg(mn.S_MAX/2 - mn.DELTA_S, mn.S_MAX/2 + mn.DELTA_S, self.s)
-
-    def get_beta_s(self):
-        # ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
-        #         - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
-        
-        #modif at second H -> was a mistake
-        ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)\
-                - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
-        return ret
-
-    def get_beta_r(self):
-        # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
-        #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
-        #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
-       
-        #modif at second H -> was amistake
-        ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)) \
-              * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
-                     smooth_step_neg(0, mn.DELTA_Z, self.z)* \
-                     smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
-        return ret
-
-
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the DS-tracking controller,
@@ -136,7 +81,7 @@ class TrackingController(Controller):
     
         if not self.with_E_storage:
             x_dot_des = self.dynamic_avoider.evaluate(x)
-            tau_c = self.G - self.D@(xdot - x_dot_des)
+            tau_c = mn.G - self.D@(xdot - x_dot_des)
 
             #physical constrains, value ? -> laisser ???
             tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
@@ -147,7 +92,7 @@ class TrackingController(Controller):
         f_c, f_r = self.decomp_f(x)
         beta_r = self.get_beta_r()
 
-        tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+        tau_c = mn.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
         #limit tau_c ?? physical constrains
 
         return tau_c
@@ -166,7 +111,8 @@ class TrackingController(Controller):
         #improve stability at atractor, not recompute always D???
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
             #D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
-            return
+            #return
+            pass
 
         #update the damping matrix
         self.D = D
@@ -215,7 +161,7 @@ class TrackingController(Controller):
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_perp
-        lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
+        lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2) > 0:
@@ -228,7 +174,7 @@ class TrackingController(Controller):
         D = E@lambda_mat@E_inv
         return D
 
-    #not used -> retest
+    #not used -> doesn't work
     def compute_D_matrix_wrt_both_mat_mul(self, x, xdot):
         D_obs = self.compute_D_matrix_wrt_obs(xdot)
         D_ds = self.compute_D_matrix_wrt_DS(x)
@@ -300,7 +246,7 @@ class TrackingController(Controller):
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS #(1-weight)*self.lambda_DS #good ??
-        lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
+        lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2_obs) > 0:
@@ -354,6 +300,7 @@ class TrackingController(Controller):
 
         #e2 is a combinaison of compliance perp to DS and away from obs
         e2_both = weight*e2_obs + (1-weight)*e2_DS
+        e2_both = e2_both/np.linalg.norm(e2_both)
 
         # extreme case were we are on the boundary of obs + exactly at the saddle point of 
         # the obstacle avoidance ds modulation -> sould never realy happends
@@ -368,12 +315,12 @@ class TrackingController(Controller):
         #HERE TEST THINGS
         #TEST 1
         #lambda_1 = (1-weight)*self.lambda_DS
-        # lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX ## nothing better ?
+        # lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs ## nothing better ?
 
         #TEST 2 - BETTER
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS
-        lambda_2 = (1-weight)*self.lambda_perp + weight*mn.LAMBDA_MAX
+        lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2_obs) > 0:
@@ -387,6 +334,57 @@ class TrackingController(Controller):
         D = E@lambda_mat@E_inv
         return D
 
+    #ENERGY TANK RELATED
+    #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
+    # D must not be updated yet
+    def update_energy_tank(self, x, xdot, dt):
+
+        if not self.with_E_storage:
+            #avoid useless computation
+            return
+
+        _, f_r = self.decomp_f(x)
+        self.z = xdot.T@f_r
+        
+        alpha = self.get_alpha()
+        beta_s = self.get_beta_s()
+
+        #using euler 1st order
+        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
+        self.s += dt*sdot
+    
+    def decomp_f(self, x):
+        f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #unmodulated dynamic : conservative (if DS is lin.)
+        f_r = self.dynamic_avoider.evaluate(x) - f_c
+        return f_c, f_r
+
+    def get_alpha(self):
+        #return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s) #used in paper
+        #return smooth_step_neg(0, mn.DELTA_S, self.s)
+
+        #centered at S_MAX/2
+        return smooth_step_neg(mn.S_MAX/2 - mn.DELTA_S, mn.S_MAX/2 + mn.DELTA_S, self.s)
+
+    def get_beta_s(self):
+        # ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
+        #         - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
+        
+        #modif at second H -> was a mistake
+        ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)\
+                - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
+        return ret
+
+    def get_beta_r(self):
+        # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
+        #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
+        #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+       
+        #modif at second H -> was amistake
+        ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(0, mn.DELTA_S, self.s)) \
+              * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
+                     smooth_step_neg(0, mn.DELTA_Z, self.z)* \
+                     smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+        return ret
 
 ### HELPER FUNTION ###
 
