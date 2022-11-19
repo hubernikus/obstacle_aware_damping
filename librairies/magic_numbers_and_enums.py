@@ -7,7 +7,9 @@ import numpy as np
 
 #controller
 LAMBDA_MAX = 200.0 #max value of lambda, complicance in chosen direction
+
 DIST_CRIT = 0.8 #dist when we stop considering obstacles
+D_SCAL = 1 #from lukas theory
 
 EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
 

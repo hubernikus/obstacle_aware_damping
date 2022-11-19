@@ -140,8 +140,9 @@ class TrackingController(Controller):
 
         #not yet for >1 obstacle
         if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
-        
+            #raise NotImplementedError("passivity for obs only for 1 obs")
+            pass
+
         #get the normal and compute the weight of the obstacle
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 where IN the obs
