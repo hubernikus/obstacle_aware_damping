@@ -20,7 +20,11 @@ import librairies.magic_numbers_and_enums as mn
 #just for plotting : global var, remoove when no bug
 from librairies.robot_animation import s_list
 
-def run_control_robot():
+def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
+
+    mn.NOISE_MAGN_POS = noise_pos
+    mn.NOISE_MAGN_VEL = noise_vel
+
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
     #initial condition
@@ -73,25 +77,6 @@ def run_control_robot():
         raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
 
 
-    ### ROBOT 1 : tau_c = 0, no command ###
-    robot_not_controlled = Robot(
-        x = x_init, 
-        xdot = xdot_init, 
-        dt = dt_simulation,
-    ) 
-
-    ### ROBOT 2 : tau_c regulates robot to origin ###
-    #--> no more suported
-    D = 10*np.eye(2) #damping matrix
-    robot_regulated = Robot(
-        x = x_init, 
-        xdot = xdot_init, 
-        dt = dt_simulation,
-        controller = RegulationController(
-            D=D,
-        ),
-    )
-
     ### ROBOT 3 : controlled via DS ###
     robot_tracked = Robot(
         x = x_init, 
@@ -114,7 +99,7 @@ def run_control_robot():
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
-        it_max = 300, #longer animation
+        it_max = 250, #longer animation
         dt_simulation = dt_simulation,
         dt_sleep = dt_simulation,
     )
@@ -125,18 +110,37 @@ def run_control_robot():
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
         draw_ideal_traj = False, 
-        draw_qolo = True,
-        rotate_qolo=True,
+        draw_qolo = False,
+        rotate_qolo=False,
     )
 
     my_animation.run(save_animation=False)
+
+    return my_animation.get_d_min()
 
 
 if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot()
+    n = 10
+    d_min_tab = np.zeros((n,))
+    noise_level = np.arange(0.1,0.5*n,0.5)
+
+    for i, noise in enumerate(noise_level):
+        d_min_tab[i] = run_control_robot(noise_pos=0.0, noise_vel=noise)
+        plt.close("all")
+
+    fig = plt.figure()
+    plt.plot(noise_level, d_min_tab)
+    plt.plot(noise_level, np.zeros_like(noise_level), "k")
+    plt.title("Effect of velocity measurement noise")
+    plt.ylabel("Closest distance to obstacle during simulation")
+    plt.xlabel("Ampliture of velocity measurement noise")
+    fig.show()
+    plt.show()
+    plt.pause(100)
+    pass
 
     #just for plotting s tank, remoove when done, or implemment better
     #fig, ax = plt.subplots()

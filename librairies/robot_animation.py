@@ -67,6 +67,8 @@ class CotrolledRobotAnimation(Animator):
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
 
+        self.d_min = 1000.0 #variable to record closest pos to obs
+
     def update_step(self, ii: int) -> None:
         print(f"iter : {ii + 1}") #because starting at 0
         
@@ -97,22 +99,26 @@ class CotrolledRobotAnimation(Animator):
         self.robot.controller.obs_dist_list =np.empty(0)
 
         for obs in self.obstacle_environment:
+            #gather the parameters wrt obstacle i
+            normal = obs.get_normal_direction(
+                    self.position_list[:, ii],
+                    in_obstacle_frame = False,
+                ).reshape(mn.DIM, 1)
             self.robot.controller.obs_normals_list = np.append(
                 self.robot.controller.obs_normals_list,
-                obs.get_normal_direction(
+                normal,
+                axis=1,
+            )
+            d = obs.get_distance_to_surface(
                     self.position_list[:, ii],
-                    in_obstacle_frame = False
-                ).reshape(mn.DIM, 1),
-                axis=1
+                    in_obstacle_frame = False,
             )
             self.robot.controller.obs_dist_list = np.append(
                 self.robot.controller.obs_dist_list,
-                obs.get_distance_to_surface(
-                    self.position_list[:, ii],
-                    in_obstacle_frame = False
-                )
+                d,
             )
-            #print(obs.get_distance_to_surface(self.position_list[:, ii], in_obstacle_frame = False))
+            if d < self.d_min:
+                self.d_min = d
 
 
         #updating the robot + record trajectory
@@ -404,3 +410,6 @@ class CotrolledRobotAnimation(Animator):
         #     self.robot.tau_e = disturbance
         #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
         #     self.new_disturbance = True
+
+    def get_d_min(self):
+        return self.d_min

@@ -22,7 +22,9 @@ class Robot:
         x = np.zeros(mn.DIM),      #curent position
         xdot = np.zeros(mn.DIM),   #current velocity
 
-        dt = 0.01
+        dt = 0.01,
+
+        noisy = False,
     ):
         self.M = M
         self.M_inv = np.linalg.inv(self.M)
@@ -37,6 +39,8 @@ class Robot:
 
         self.tau_c = tau_c
         self.tau_e = tau_e
+
+        self.noisy = noisy
 
 
     def simulation_step(self):
@@ -119,6 +123,10 @@ class Robot:
         self.xdot += k1
 
     def measure_pos_vel(self):
-        x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,mn.DIM)
-        xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,mn.DIM)
+        if self.noisy:
+            x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,mn.DIM)
+            xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,mn.DIM)
+        else:
+            x = self.x
+            xdot = self.xdot
         return x, xdot

@@ -52,6 +52,7 @@ class TrackingController(Controller):
         lambda_perp = 20.0, #compliance perp to DS or obs
         lambda_obs = mn.LAMBDA_MAX,
         type_of_D_matrix = TypeD.BOTH,
+        ortho_basis_approach = False,
         with_E_storage = False,
         
     ):
@@ -67,6 +68,7 @@ class TrackingController(Controller):
         self.obs_dist_list = np.empty(0)
 
         self.type_of_D_matrix = type_of_D_matrix
+        self.ortho_basis_approach = ortho_basis_approach
 
         #energy tank
         self.with_E_storage = with_E_storage
@@ -106,8 +108,11 @@ class TrackingController(Controller):
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
             D = self.compute_D_matrix_wrt_obs(xdot)
         elif self.type_of_D_matrix == TypeD.BOTH:
-            D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
-
+            if self.ortho_basis_approach:
+                D = self.compute_D_matrix_wrt_both_ortho_basis(x, xdot)
+            else: #probably better
+                D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
+                
         #improve stability at atractor, not recompute always D???
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
             #D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
@@ -135,25 +140,36 @@ class TrackingController(Controller):
 
     def compute_D_matrix_wrt_obs(self, xdot):
         #if there is no obstacles, we just keep D as it is
-        if not self.obs_dist_list:
+        if not np.size(self.obs_dist_list):
             return self.D
 
         #not yet for >1 obstacle
         if self.obs_dist_list.shape[0] > 1:
             #raise NotImplementedError("passivity for obs only for 1 obs")
             pass
-
-        #get the normal and compute the weight of the obstacle
+        
+        weight = 0
+        e2 = np.zeros(2)
+        #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            #if dist <0 where IN the obs
+            #if dist <0 we're IN the obs
             if dist <= 0: 
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            if weight_i > weight:
+                weight = weight_i
 
-            #e2 is align with the normal
-            e2 = normal
+            #e2 is a weighted linear combianation of all the normals
+            e2 += normal/(dist + 1)
+
+        e2_norm = np.linalg.norm(e2)
+        if not e2_norm:
+            #resultant normal not defined
+            #what to do ?? -> return prev mat
+            return self.D
+        e2 = e2/e2_norm
 
         #construct the basis matrix, align with the normal of the obstacle
         e1 = np.array([e2[1], -e2[0]])
@@ -187,7 +203,7 @@ class TrackingController(Controller):
 
     def compute_D_matrix_wrt_both_ortho_basis(self, x, xdot):
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
-        if not self.obs_dist_list:
+        if not np.size(self.obs_dist_list):
             return self.compute_D_matrix_wrt_DS(x)
 
         #get desired velocity
@@ -204,19 +220,32 @@ class TrackingController(Controller):
 
         #not yet for >1 obstacle
         if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
+            #raise NotImplementedError("passivity for obs only for 1 obs")
+            pass
 
-        #get the normal and compute the weight of the obstacle
+        weight = 0
+        e2_obs = np.zeros(2)
+        #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            #if dist <0 where IN the obs /!\
+            #if dist <0 we're IN the obs
             if dist <= 0: 
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            #keep only biggest wight -> closer obstacle
+            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            if weight_i > weight:
+                weight = weight_i
 
-            #e2_obs is align to the normal
-            e2_obs = normal
+            #e2_obs is a weighted linear combianation of all the normals
+            e2_obs += normal/(dist + 1)
+
+        e2_obs_norm = np.linalg.norm(e2_obs)
+        if not e2_obs_norm:
+            #resultant normal not defined
+            #what to do ?? -> return prev mat
+            return self.D
+        e2_obs = e2_obs/e2_obs_norm
 
         # construct the basis align with the normal of the obstacle
         # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
@@ -262,7 +291,7 @@ class TrackingController(Controller):
 
     def compute_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
-        if not self.obs_dist_list:
+        if not np.size(self.obs_dist_list):
             return self.compute_D_matrix_wrt_DS(x)
 
         #get desired velocity
@@ -279,19 +308,32 @@ class TrackingController(Controller):
 
         #not yet for >1 obstacle
         if self.obs_dist_list.shape[0] > 1:
-            raise NotImplementedError("passivity for obs only for 1 obs")
-
-        #get the normal and compute the weight of the obstacle
+            #raise NotImplementedError("passivity for obs only for 1 obs")
+            pass
+        
+        weight = 0
+        e2_obs = np.zeros(2)
+        #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            #if dist <0 where IN the obs /!\
+            #if dist <0 we're IN the obs
             if dist <= 0: 
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            weight = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            #keep only biggest wight -> closer obstacle
+            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            if weight_i > weight:
+                weight = weight_i
 
-            #e2_obs is align to the normal
-            e2_obs = normal
+            #e2_obs is a weighted linear combianation of all the normals
+            e2_obs += normal/(dist + 1)
+
+        e2_obs_norm = np.linalg.norm(e2_obs)
+        if not e2_obs_norm:
+            #resultant normal not defined
+            #what to do ?? -> return prev mat
+            return self.D
+        e2_obs = e2_obs/e2_obs_norm
 
         # we want both e2 to be cointained in the same half-plane 
         # -> their weighted addition will not be collinear to e1_DS
