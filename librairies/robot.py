@@ -81,7 +81,7 @@ class Robot:
 
         #reset the disturbance, because taken account of it in rk4_step() 
         # i.e. disturbance are ponctual, only applied once to the system
-        self.tau_e = np.array([0.0, 0.0])
+        self.tau_e = np.zeros(mn.DIM)
 
     def func_dyn(self, pos, vel, time): 
         """

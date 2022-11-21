@@ -27,7 +27,7 @@ DELTA_Z = 0.01      #smoothness parameter
 QOLO_LENGHT_X = 0.4
 
 #EVERYTHING
-DIM = 2
+DIM = 3 #NEED TO CHANGE HERE TO SWITCH IN 3D
 EPSILON = 1e-6
 G = np.zeros(DIM)
 

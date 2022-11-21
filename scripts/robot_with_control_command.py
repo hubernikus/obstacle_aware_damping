@@ -131,12 +131,112 @@ def run_control_robot():
 
     my_animation.run(save_animation=False)
 
+def run_control_robot_3D():
+    """
+    same but in 3d
+    """
+    dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
+
+    #initial condition
+    x_init = np.array([-2.0, 0.0, 0.0]) #np.array([-2.0, 0.3, 0.0]) 
+    xdot_init = np.array([0.0, 0.0, 0.0])
+
+    #setup atractor 
+    attractor_position = np.array([2.0, 0.0, 0.0])
+
+    #setup of obstacles
+    #3D ???
+    obstacle_environment = ObstacleContainer()
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.6, 0.6, 0.6],
+            center_position=np.array([0.0, 0.0, 0.0]), #z 0.1
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            linear_velocity = np.array([0.0, 0.0, 0.0]), #necessary to specify in 3D
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[0.5, 0.5],
+    #         center_position=np.array([0.0, 1.0]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 0.5]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
+
+    #setup of dynamical system
+    initial_dynamics = LinearSystem(
+        attractor_position = attractor_position,
+        dimension=3,
+        maximum_velocity=3,
+        distance_decrease=0.5, #if too small, could lead to instable around atractor 
+    )
+
+    #setup of compliance values
+    lambda_DS = 100.0 #must not be > 200 (num error, patch dt smaller) -> 200 makes xdot varies too much
+                      # bc in tau_c compute -D@xdot becomes too big  + much more stable at atrat.
+    lambda_perp = 20.0
+    lambda_obs = mn.LAMBDA_MAX
+    if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs > mn.LAMBDA_MAX:
+        raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
+
+
+    ### ROBOT 3 : controlled via DS ###
+    robot_tracked = Robot(
+        x = x_init, 
+        xdot = xdot_init, 
+        dt = dt_simulation,
+        noisy= False,
+        controller = TrackingController(
+            dynamic_avoider = ModulationAvoider(
+                initial_dynamics=initial_dynamics,
+                obstacle_environment=obstacle_environment,
+            ),
+            lambda_DS=lambda_DS,
+            lambda_perp=lambda_perp,
+            lambda_obs = lambda_obs,
+            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
+            ortho_basis_approach = False,
+            with_E_storage = False
+        ),
+    )
+
+    #setup of animator
+    my_animation = CotrolledRobotAnimation(
+        it_max = 300, #longer animation
+        dt_simulation = dt_simulation,
+        dt_sleep = dt_simulation,
+    )
+
+    my_animation.setup(
+        robot = robot_tracked,
+        obstacle_environment = obstacle_environment,
+        x_lim = [-3, 3],
+        y_lim = [-2.1, 2.1],
+        draw_ideal_traj = False, 
+        draw_qolo = True,
+        rotate_qolo=True,
+    )
+
+    my_animation.run(save_animation=False)
+
 
 if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot()
+    #run_control_robot()
+
+    #/!\ to use need to change DIM = 3 in magicnumber file
+    run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better
     #fig, ax = plt.subplots()

@@ -62,7 +62,15 @@ class TrackingController(Controller):
         self.lambda_perp = lambda_perp
         self.lambda_obs = lambda_obs
 
-        self.D = np.array([[self.lambda_DS, 0.0],[0.0, self.lambda_perp]])
+        if mn.DIM == 2:
+            self.D = np.array([[self.lambda_DS, 0.0],
+                               [0.0, self.lambda_perp]])
+        elif mn.DIM == 3:
+            self.D = np.array([[self.lambda_DS, 0.0, 0.0],
+                               [0.0, self.lambda_perp, 0.0],
+                               [0.0, 0.0, self.lambda_perp]])
+        else:
+            raise NotImplementedError("unknown dimension")
 
         self.obs_normals_list = np.empty((mn.DIM, 0))
         self.obs_dist_list = np.empty(0)
@@ -117,7 +125,7 @@ class TrackingController(Controller):
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
             #D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
             #return
-            pass
+            pass #curently doing nothing
 
         #update the damping matrix
         self.D = D
@@ -132,7 +140,13 @@ class TrackingController(Controller):
         E_inv = np.linalg.inv(E)
 
         #contruct the matrix containing the damping coefficient along selective directions
-        lambda_mat = np.array([[self.lambda_DS, 0.0], [0.0, self.lambda_perp]])
+        if mn.DIM == 2:
+            lambda_mat = np.array([[self.lambda_DS, 0.0],
+                                   [0.0, self.lambda_perp]])
+        else:
+            lambda_mat = np.array([[self.lambda_DS, 0.0, 0.0], 
+                                   [0.0, self.lambda_perp, 0.0],
+                                   [0.0, 0.0, self.lambda_perp]])
 
         #compose the damping matrix
         D = E@lambda_mat@E_inv
@@ -142,14 +156,9 @@ class TrackingController(Controller):
         #if there is no obstacles, we just keep D as it is
         if not np.size(self.obs_dist_list):
             return self.D
-
-        #not yet for >1 obstacle
-        if self.obs_dist_list.shape[0] > 1:
-            #raise NotImplementedError("passivity for obs only for 1 obs")
-            pass
         
         weight = 0
-        e2 = np.zeros(2)
+        e2 = np.zeros(mn.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -172,20 +181,35 @@ class TrackingController(Controller):
         e2 = e2/e2_norm
 
         #construct the basis matrix, align with the normal of the obstacle
-        e1 = np.array([e2[1], -e2[0]])
-        E = np.array([e1, e2]).T
-        E_inv = np.linalg.inv(E)
+        
+        if mn.DIM == 2:
+            e1 = np.array([e2[1], -e2[0]])
+            E = np.array([e1, e2]).T
+            E_inv = np.linalg.inv(E)
+        else :
+            e1 = np.array([e2[1], -e2[0], 0.0]) # we have a degree of freedom -> 0.0
+            if not any(e1): #e1 is [0,0,0]
+                e1 = np.array([-e2[2], 0.0, e2[0]])
+            e3 = np.cross(e1,e2)
+            E = np.array([e1, e2, e3]).T
+            E_inv = np.linalg.inv(E)
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_perp
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
+        lambda_3 = self.lambda_perp
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2) > 0:
             lambda_2 = self.lambda_perp
 
         #contruct the matrix containing the damping coefficient along selective directions
-        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        if mn.DIM == 2:
+            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        else:
+            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+                                   [0.0, lambda_2, 0.0],
+                                   [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
         D = E@lambda_mat@E_inv
@@ -214,17 +238,12 @@ class TrackingController(Controller):
             #we just return the previous damping matrix
             return self.D
         
-        # compute the basis of the DS : [e1_DS, e2_DS]
+        #compute the vector align to the DS
         e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
-        e2_DS = np.array([e1_DS[1], -e1_DS[0]])
 
-        #not yet for >1 obstacle
-        if self.obs_dist_list.shape[0] > 1:
-            #raise NotImplementedError("passivity for obs only for 1 obs")
-            pass
-
+        #compute vector relative to obstacles
         weight = 0
-        e2_obs = np.zeros(2)
+        e2_obs = np.zeros(mn.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -247,12 +266,22 @@ class TrackingController(Controller):
             return self.D
         e2_obs = e2_obs/e2_obs_norm
 
-        # construct the basis align with the normal of the obstacle
-        # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
-        # this play a crucial role for the limit case
-        e1_obs = np.array([-e2_obs[1], e2_obs[0]])
+        # compute the basis of the DS : [e1_DS, e2_DS] or 3d
+        if mn.DIM == 2:
+            e2_DS = np.array([e1_DS[1], -e1_DS[0]])
+            # construct the basis align with the normal of the obstacle
+            # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
+            # this play a crucial role for the limit case
+            e1_obs = np.array([-e2_obs[1], e2_obs[0]])
+        else:
+            e3 = np.cross(e1_DS, e2_obs)
+            if not np.any(e3): #limit case if e1_DS//e2_obs -> DS aligned w/ normal
+                warnings.warn("Limit case")
+                return self.D #what to do ??
+            e2_DS = np.cross(e3, e1_DS)
+            e1_obs = np.cross(e2_obs, e3)
 
-        # we want both basis to be cointained in the same half-plane
+        # we want both basis to be cointained in the same half-plane /space
         # we have this liberty since we always have 2 choice when choosing a perpendiular
         if np.dot(e2_obs, e2_DS) < 0:
             e2_DS = -e2_DS
@@ -271,19 +300,29 @@ class TrackingController(Controller):
             raise("What did trigger this, it shouldn't")
             
         #construct the basis matrix
-        E = np.array([e1_both, e2_both]).T
-        E_inv = np.linalg.inv(E)
+        if mn.DIM == 2:
+            E = np.array([e1_DS, e2_both]).T
+            E_inv = np.linalg.inv(E)
+        else :
+            E = np.array([e1_DS, e2_both, e3]).T
+            E_inv = np.linalg.inv(E)
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS #(1-weight)*self.lambda_DS #good ??
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
+        lambda_3 = self.lambda_perp
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2_obs) > 0:
             lambda_2 = self.lambda_perp
 
         #contruct the matrix containing the damping coefficient along selective directions
-        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        if mn.DIM == 2:
+            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        else:
+            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+                                   [0.0, lambda_2, 0.0],
+                                   [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
         D = E@lambda_mat@E_inv
@@ -302,17 +341,12 @@ class TrackingController(Controller):
             #we just return the previous damping matrix
             return self.D
         
-        # compute the basis of the DS : [e1_DS, e2_DS]
+        #compute the vector align to the DS
         e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
-        e2_DS = np.array([e1_DS[1], -e1_DS[0]])
-
-        #not yet for >1 obstacle
-        if self.obs_dist_list.shape[0] > 1:
-            #raise NotImplementedError("passivity for obs only for 1 obs")
-            pass
         
+        #compute vector relative to obstacles
         weight = 0
-        e2_obs = np.zeros(2)
+        e2_obs = np.zeros(mn.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -335,7 +369,18 @@ class TrackingController(Controller):
             return self.D
         e2_obs = e2_obs/e2_obs_norm
 
-        # we want both e2 to be cointained in the same half-plane 
+
+        # compute the basis of the DS : [e1_DS, e2_DS] or 3d
+        if mn.DIM == 2:
+            e2_DS = np.array([e1_DS[1], -e1_DS[0]])
+        else:
+            e3 = np.cross(e1_DS, e2_obs)
+            if not np.any(e3): #limit case if e1_DS//e2_obs -> DS aligned w/ normal
+                warnings.warn("Limit case")
+                return self.D #what to do ??
+            e2_DS = np.cross(e3, e1_DS)
+
+        # we want both e2 to be cointained in the same half-plane/space
         # -> their weighted addition will not be collinear to e1_DS
         # we have this liberty since we always have 2 choice when choosing a perpendiular
         if np.dot(e2_obs, e2_DS) < 0:
@@ -352,8 +397,12 @@ class TrackingController(Controller):
             return self.D
 
         #construct the basis matrix
-        E = np.array([e1_DS, e2_both]).T
-        E_inv = np.linalg.inv(E)
+        if mn.DIM == 2:
+            E = np.array([e1_DS, e2_both]).T
+            E_inv = np.linalg.inv(E)
+        else :
+            E = np.array([e1_DS, e2_both, e3]).T
+            E_inv = np.linalg.inv(E)
 
         #HERE TEST THINGS
         #TEST 1
@@ -364,6 +413,7 @@ class TrackingController(Controller):
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
+        lambda_3 = self.lambda_perp
 
         #if we go away from obs, we relax the stiffness
         if np.dot(xdot, e2_obs) > 0:
@@ -371,7 +421,12 @@ class TrackingController(Controller):
             pass
         
         #contruct the matrix containing the damping coefficient along selective directions
-        lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        if mn.DIM == 2:
+            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+        else:
+            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+                                   [0.0, lambda_2, 0.0],
+                                   [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
         D = E@lambda_mat@E_inv

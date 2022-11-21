@@ -11,11 +11,13 @@ from scipy import ndimage
 from vartools.animator import Animator
 
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
-from dynamic_obstacle_avoidance.visualization import plot_obstacles
+#from dynamic_obstacle_avoidance.visualization import plot_obstacles
+#overwritten by me
 
 #my librairies
 from librairies.robot import Robot
 import librairies.magic_numbers_and_enums as mn
+from librairies.draw_obs_overwrite import plot_obstacles
 
 #just for plotting : global
 s_list = []
@@ -65,7 +67,10 @@ class CotrolledRobotAnimation(Animator):
         self.qolo_length_x = mn.QOLO_LENGHT_X
         self.qolo_length_y = (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x
 
-        self.fig, self.ax = plt.subplots(figsize=(10, 8))
+        if mn.DIM == 2:
+            self.fig, self.ax = plt.subplots(figsize=(10, 8))
+        else:
+            self.fig, self.ax = plt.subplots(1,2,figsize=(14, 7))
 
         self.d_min = 1000.0 #variable to record closest pos to obs
 
@@ -85,9 +90,8 @@ class CotrolledRobotAnimation(Animator):
         #just for plotting storage s -> delete when no bug
         s_list.append(self.robot.controller.s)
 
-        #record position of the new disturbance added with key pressed
+        #record position of the new disturbance added with mouse drag
         if self.new_disturbance:
-            #bizarre line, recheck append
             self.disturbance_pos_list = np.append(
                 self.disturbance_pos_list, 
                 self.position_list[:,ii].reshape((mn.DIM, 1)), axis = 1
@@ -139,14 +143,25 @@ class CotrolledRobotAnimation(Animator):
         #################
         #### CLEARING ###
         #################
-
-        self.ax.clear()
+        if mn.DIM == 2:
+            self.ax.clear()
+        else:
+            for ax in self.ax:
+                ax.clear()
 
         ################
         ### PLOTTING ###
         ################
+
+        if mn.DIM == 2:
+            self.plot_anim_2D(ii)
+        else:
+            self.plot_anim_3D(ii)
         
-        #juste for video recording syncronisation purposes
+        
+
+    def plot_anim_2D(self, ii):
+        #just for video recording syncronisation purposes
         if ii == 5:
             #self.ax.plot(0.,0.,"o", color="r", markersize=20,)
             pass
@@ -259,6 +274,134 @@ class CotrolledRobotAnimation(Animator):
         
         plt.legend()
 
+    def plot_anim_3D(self, ii):
+        #just for video recording syncronisation purposes
+        if ii == 5:
+            #self.ax.plot(0.,0.,"o", color="r", markersize=20,)
+            pass
+        
+        plt.title("3D viewer (obstacle penetration only if both views penetrate")
+        for i, ax in enumerate(self.ax):
+            if i == 0: #plot xy plane
+                absciss = 0 #x
+                ordinate = 1 #y
+                ax.set_title("View of XY plane - side view")
+            else: #plot in zy plane
+                absciss = 2 #z
+                ordinate = 1 #y
+                ax.set_title("View of ZY plane - front view")
+            #ax settings
+            ax.set_xlim(self.x_lim)
+            ax.set_ylim(self.y_lim)
+            ax.tick_params(
+                axis='both',
+                which='both',
+                bottom=False,
+                top=False,
+                right=False,
+                left=False,
+                labelbottom=False,
+                labelleft=False,
+            )
+
+            #ideal trajectory - in light blue
+            if self.draw_ideal_traj:
+                ax.plot(
+                    self.position_list_ideal[absciss, :ii], 
+                    self.position_list_ideal[ordinate, :ii], 
+                    ":", color="#0000FF",
+                    label= "Ideal trajectory"
+                )
+
+            #past trajectory - in green
+            if ii >= 1: #not first iter
+                ax.plot(
+                    self.position_list[absciss, :(ii - 1)], 
+                    self.position_list[ordinate, :(ii - 1)], 
+                    ":", color="#135e08",
+                    label= "Real trajectory"
+                )
+
+            #atractor position
+            atractor = self.robot.controller.dynamic_avoider.initial_dynamics.attractor_position
+            ax.plot(
+                atractor[absciss],
+                atractor[ordinate],
+                "k*",
+                markersize=8,
+            )
+
+            #obstacles positions
+            plot_obstacles(
+                ax=ax,
+                obstacle_container=self.obstacle_environment,
+                x_lim=self.x_lim,
+                y_lim=self.y_lim,
+                showLabel=False,
+                absciss = absciss,
+                ordinate = ordinate,
+            )
+
+            #disturbance drawing, bizzare lines, recheck, magic numbers ??
+            for  i, (disturbance, disturbance_pos) in enumerate(zip(self.disturbance_list.transpose(),
+                                                    self.disturbance_pos_list.transpose())):
+                #small trick to only label one disturance
+                if i == 0:
+                    ax.arrow(disturbance_pos[absciss], disturbance_pos[ordinate],
+                                disturbance[absciss]/500.0, disturbance[ordinate]/500.0,
+                                width=0.02,
+                                color= "r",
+                                label= "Disturbances",)
+                else : 
+                    ax.arrow(disturbance_pos[absciss], disturbance_pos[ordinate],
+                                disturbance[absciss]/500.0, disturbance[ordinate]/500.0,
+                                width=0.02,
+                                color= "r",)
+
+            #actual position is i, futur position is i + 1 (will be plot next cycle)
+            if self.draw_qolo:
+                #carefull, rotating slows a lot the animation
+                if self.rotate_qolo:
+                    angle_rot = np.arctan2(self.velocity_list[ordinate, ii],
+                                           self.velocity_list[absciss, ii]
+                    )
+                    qolo_rot = ndimage.rotate(
+                        self.qolo, 
+                        angle_rot * 180.0 / np.pi, cval=255
+                    )
+                    lenght_x_rotated = (
+                        np.abs(np.cos(angle_rot)) * self.qolo_length_x + np.abs(np.sin(angle_rot)) \
+                        * self.qolo_length_y
+                    )
+                    lenght_y_rotated = (
+                        np.abs(np.sin(angle_rot)) * self.qolo_length_x + np.abs(np.cos(angle_rot)) \
+                        * self.qolo_length_y
+                    )
+                else:
+                    lenght_x_rotated = self.qolo_length_x
+                    lenght_y_rotated = self.qolo_length_y
+                    qolo_rot = self.qolo
+
+                ax.imshow(
+                    (qolo_rot*255).astype('uint8'),
+                    extent = [
+                        self.position_list[absciss,ii] - lenght_x_rotated/2,
+                        self.position_list[absciss,ii] + lenght_x_rotated/2,
+                        self.position_list[ordinate,ii] - lenght_y_rotated/2,
+                        self.position_list[ordinate,ii] + lenght_y_rotated/2,
+                    ]
+                )
+            else:
+                ax.plot(
+                    self.position_list[absciss, ii],
+                    self.position_list[ordinate, ii],
+                    "o",
+                    color="#135e08",
+                    markersize=12,
+                )
+            
+        plt.legend()
+
 
     #overwrite key detection of Animator -> not use anymore
     #/!\ bug when 2 keys pressed at same time
@@ -368,15 +511,37 @@ class CotrolledRobotAnimation(Animator):
 
                     self.it_count += 1
 
+
+    ### DISTURBANCES HANDLING ###
+
     def record_click_coord(self, event):
         self.x_press_disturbance, self.y_press_disturbance = event.xdata, event.ydata
+        #print(event.xdata, event.ydata)
 
     def add_click_disturbance(self, event):
         if event.xdata is None:
             return
+        
+        if mn.DIM == 2:
+            disturbance = np.array(
+                [event.xdata - self.x_press_disturbance,
+                 event.ydata - self.y_press_disturbance]
+            )*self.disturbance_scaling
+        else:
+            if event.inaxes is self.ax[0]: #dist in XY plane
+                disturbance = np.array(
+                    [event.xdata - self.x_press_disturbance,
+                     event.ydata - self.y_press_disturbance,
+                     0.0]
+                )*self.disturbance_scaling
+            else:
+                disturbance = np.array( #dist in ZY plane
+                    [0.0,
+                     event.ydata - self.y_press_disturbance,
+                     event.xdata - self.x_press_disturbance]
+                )*self.disturbance_scaling
 
-        disturbance = np.array([event.xdata - self.x_press_disturbance,
-                                event.ydata - self.y_press_disturbance])*self.disturbance_scaling
+        
         if np.linalg.norm(disturbance) < 10.0:
             return
         #print("disturbance : ", disturbance)
