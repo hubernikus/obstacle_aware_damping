@@ -37,6 +37,8 @@ from dynamic_obstacle_avoidance.avoidance import obs_avoidance_rk4
 
 plt.ion()
 
+import librairies.magic_numbers_and_enums as mn
+
 
 def plot_obstacles(
     obstacle_container,
@@ -99,6 +101,22 @@ def plot_obstacles(
 
     for n, obs in enumerate(obstacle_container):
         # Tiny bit outdated - newer obstacles wont have this
+
+        if absciss == 0 and ordinate == 1:
+            depth = 2
+        elif absciss == 2 and ordinate == 1:
+            depth = 0
+        
+        #added by thibaud to handle 3D: HUGLY PATCH - WORKS
+        #we swap all coord since implemented function only handles xy
+        if mn.DIM == 3:
+            obs.axes_length[[0,1,2]] = obs.axes_length[[absciss, ordinate, depth]]
+            obs.axes_with_margin[[0,1,2]] = obs.axes_with_margin[[absciss, ordinate, depth]]
+            obs.center_position[[0,1,2]] = obs.center_position[[absciss, ordinate, depth]]
+            obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
+            obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
+            obs.linear_velocity[[0,1,2]] = obs.linear_velocity[[absciss, ordinate, depth]]
+            obs.position[[0,1,2]] = obs.position[[absciss, ordinate, depth]]
 
         if hasattr(obs, "get_boundary_xy"):
             x_obs = np.array(obs.get_boundary_xy()).T
@@ -177,8 +195,8 @@ def plot_obstacles(
         if draw_reference and not obs.is_boundary or draw_wall_reference:
             reference_point = obs.get_reference_point(in_global_frame=True)
             ax.plot(
-                reference_point[absciss],
-                reference_point[ordinate],
+                reference_point[0],
+                reference_point[1],
                 "k+",
                 linewidth=12,
                 markeredgewidth=2.4,
@@ -188,8 +206,8 @@ def plot_obstacles(
 
         if (not obs.is_boundary or draw_wall_reference) and draw_center:
             ax.plot(
-                obs.center_position[absciss],
-                obs.center_position[ordinate],
+                obs.center_position[0],
+                obs.center_position[1],
                 "k.",
                 zorder=3,
             )
@@ -211,10 +229,10 @@ def plot_obstacles(
             # col=[0.5,0,0.9]
             col = [255 / 255.0, 51 / 255.0, 51 / 255.0]
             ax.arrow(
-                obs.center_position[absciss],
-                obs.center_position[absciss],
-                obs.linear_velocity[ordinate] * velocity_arrow_factor,
-                obs.linear_velocity[ordinate] * velocity_arrow_factor,
+                obs.center_position[0],
+                obs.center_position[1],
+                obs.linear_velocity[0] * velocity_arrow_factor,
+                obs.linear_velocity[1] * velocity_arrow_factor,
                 # head_width=0.3, head_length=0.3, linewidth=10,
                 head_width=0.1,
                 head_length=0.1,
@@ -224,6 +242,17 @@ def plot_obstacles(
                 alpha=1,
                 zorder=3,
             )
+
+        #back to normal 
+        #added by thibaud to handle 3D:
+        if mn.DIM == 3:
+            obs.axes_length[[absciss, ordinate, depth]] = obs.axes_length[[0,1,2]]
+            obs.axes_with_margin[[absciss, ordinate, depth]] = obs.axes_with_margin[[0,1,2]]
+            obs.center_position[[absciss, ordinate, depth]] = obs.center_position[[0,1,2]]
+            obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
+            obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
+            obs.linear_velocity[[absciss, ordinate, depth]] = obs.linear_velocity[[0,1,2]]
+            obs.position[[absciss, ordinate, depth]] = obs.position[[0,1,2]]
 
     ax.set_aspect("equal", adjustable="box")
 

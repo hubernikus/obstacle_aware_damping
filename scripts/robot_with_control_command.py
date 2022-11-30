@@ -44,18 +44,18 @@ def run_control_robot():
             # repulsion_coeff=1.4,
         )
     )
-    # obstacle_environment.append(
-    #     Cuboid(
-    #         axes_length=[0.5, 0.5],
-    #         center_position=np.array([0.0, 1.0]),
-    #         # center_position=np.array([0.9, 0.25]),
-    #         margin_absolut=0.15,
-    #         # orientation=10 * pi / 180,
-    #         #linear_velocity = np.array([0.0, 0.5]),
-    #         tail_effect=False,
-    #         # repulsion_coeff=1.4,
-    #     )
-    # )
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.5, 0.5],
+            center_position=np.array([0.0, 2.0]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 0.5]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
 
     #setup of dynamical system
     initial_dynamics = LinearSystem(
@@ -97,7 +97,7 @@ def run_control_robot():
         x = x_init, 
         xdot = xdot_init, 
         dt = dt_simulation,
-        noisy= True,
+        noisy= False,
         controller = TrackingController(
             dynamic_avoider = ModulationAvoider(
                 initial_dynamics=initial_dynamics,
@@ -107,7 +107,7 @@ def run_control_robot():
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            ortho_basis_approach = False,
+            ortho_basis_approach = True,
             with_E_storage = False
         ),
     )
@@ -150,7 +150,7 @@ def run_control_robot_3D():
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.6, 0.6, 0.6],
-            center_position=np.array([0.0, 0.0, 0.0]), #z 0.1
+            center_position=np.array([0.0, -0.1, 0.0]), #z 0.1
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -161,12 +161,12 @@ def run_control_robot_3D():
     )
     # obstacle_environment.append(
     #     Cuboid(
-    #         axes_length=[0.5, 0.5],
-    #         center_position=np.array([0.0, 1.0]),
+    #         axes_length=[0.5, 0.5, 1.0],
+    #         center_position=np.array([0.0, -0.5, 0.5]),
     #         # center_position=np.array([0.9, 0.25]),
     #         margin_absolut=0.15,
     #         # orientation=10 * pi / 180,
-    #         #linear_velocity = np.array([0.0, 0.5]),
+    #         linear_velocity = np.array([0.0, 0.0, 0.0]), #necessary to specify in 3D (even when 0.0)
     #         tail_effect=False,
     #         # repulsion_coeff=1.4,
     #     )
@@ -204,7 +204,7 @@ def run_control_robot_3D():
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            ortho_basis_approach = False,
+            ortho_basis_approach = True,
             with_E_storage = False
         ),
     )

@@ -230,7 +230,7 @@ class TrackingController(Controller):
         if not np.size(self.obs_dist_list):
             return self.compute_D_matrix_wrt_DS(x)
 
-        #get desired velocity
+        #get desired velocity - THAT takes long to compute
         x_dot_des = self.dynamic_avoider.evaluate(x)
 
         #if the desired velocity is too small, we risk numerical issue
@@ -275,9 +275,12 @@ class TrackingController(Controller):
             e1_obs = np.array([-e2_obs[1], e2_obs[0]])
         else:
             e3 = np.cross(e1_DS, e2_obs)
-            if not np.any(e3): #limit case if e1_DS//e2_obs -> DS aligned w/ normal
+            norm_e3 = np.linalg.norm(e3)
+            if not norm_e3: #limit case if e1_DS//e2_obs -> DS aligned w/ normal
                 warnings.warn("Limit case")
                 return self.D #what to do ??
+            else : 
+                e3 = e3/norm_e3
             e2_DS = np.cross(e3, e1_DS)
             e1_obs = np.cross(e2_obs, e3)
 

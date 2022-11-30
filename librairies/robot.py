@@ -12,7 +12,8 @@ class Robot:
     def __init__(
         self,
         M = np.eye(mn.DIM),
-        C = np.zeros((mn.DIM,mn.DIM)), #10*np.eye(dim) with damping
+        #C = 10*np.eye(mn.DIM), # with damping 
+        C = np.zeros((mn.DIM,mn.DIM)),
 
         tau_c = np.zeros(mn.DIM),  #control torque
         tau_e = np.zeros(mn.DIM),  #external disturbance torque

@@ -15,8 +15,8 @@ EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
 
 MAX_TAU_C = 500.0 #max possible torque #500 works well, 100 also, but less damped against obs
 
-NOISE_MAGN_POS = 0.25 #0.5 still good
-NOISE_MAGN_VEL = 0 #1 still good
+NOISE_MAGN_POS = 0.0 #0.5 still good
+NOISE_MAGN_VEL = 5. #1 still good
 
 #tank system
 S_MAX = 100.0
@@ -29,8 +29,12 @@ QOLO_LENGHT_X = 0.4
 #EVERYTHING
 DIM = 3 #NEED TO CHANGE HERE TO SWITCH IN 3D
 EPSILON = 1e-6
-G = np.zeros(DIM)
-
+if DIM == 2:
+    #G = np.array([0.0, -9.81])
+    G = np.zeros(DIM)
+else:
+    #G = np.array([0.0, -9.81, 0.0])
+    G = np.zeros(DIM)
 
 ##################
 ## ENUM CLASSES ##
