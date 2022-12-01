@@ -99,7 +99,7 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
-        it_max = 250, #longer animation
+        it_max = 200, #longer animation
         dt_simulation = dt_simulation,
         dt_sleep = dt_simulation,
     )
@@ -123,20 +123,28 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    n = 10
-    d_min_tab = np.zeros((n,))
-    noise_level = np.arange(0.1,0.5*n,0.5)
+    n = 11
+    epochs = 10
+    d_min_tab = np.zeros((n,epochs))
+    noise_level = np.linspace(0.0,5.0,n)
 
     for i, noise in enumerate(noise_level):
-        d_min_tab[i] = run_control_robot(noise_pos=0.0, noise_vel=noise)
-        plt.close("all")
+        print("noise :", noise)
+        for e in range(epochs):
+            print("epoch :", e)
+            d_min_tab[i,e] = run_control_robot(noise_pos=0.0, noise_vel=noise)
+            plt.close("all")
+
+    mean = d_min_tab.mean(axis=1)
+    std = d_min_tab.std(axis=1)
 
     fig = plt.figure()
-    plt.plot(noise_level, d_min_tab)
-    plt.plot(noise_level, np.zeros_like(noise_level), "k")
+    plt.errorbar(noise_level, mean, yerr=std)
+    #plt.plot(noise_level, d_min_tab)
+    #plt.plot(noise_level, np.zeros_like(noise_level), "k")
     plt.title("Effect of velocity measurement noise")
-    plt.ylabel("Closest distance to obstacle during simulation")
-    plt.xlabel("Ampliture of velocity measurement noise")
+    plt.ylabel("Closest distance to obstacle during simulation [m]")
+    plt.xlabel("Ampliture of velocity measurement noise [m/s]")
     fig.show()
     plt.show()
     plt.pause(100)
