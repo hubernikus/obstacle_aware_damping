@@ -109,14 +109,14 @@ def plot_obstacles(
         
         #added by thibaud to handle 3D: HUGLY PATCH - WORKS
         #we swap all coord since implemented function only handles xy
-        if mn.DIM == 3:
-            obs.axes_length[[0,1,2]] = obs.axes_length[[absciss, ordinate, depth]]
-            obs.axes_with_margin[[0,1,2]] = obs.axes_with_margin[[absciss, ordinate, depth]]
-            obs.center_position[[0,1,2]] = obs.center_position[[absciss, ordinate, depth]]
-            obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
-            obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
-            obs.linear_velocity[[0,1,2]] = obs.linear_velocity[[absciss, ordinate, depth]]
-            obs.position[[0,1,2]] = obs.position[[absciss, ordinate, depth]]
+        # if mn.DIM == 3:
+        #     obs.axes_length[[0,1,2]] = obs.axes_length[[absciss, ordinate, depth]]
+        #     obs.axes_with_margin[[0,1,2]] = obs.axes_with_margin[[absciss, ordinate, depth]]
+        #     obs.center_position[[0,1,2]] = obs.center_position[[absciss, ordinate, depth]]
+        #     obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
+        #     obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
+        #     obs.linear_velocity[[0,1,2]] = obs.linear_velocity[[absciss, ordinate, depth]]
+        #     obs.position[[0,1,2]] = obs.position[[absciss, ordinate, depth]]
 
         if hasattr(obs, "get_boundary_xy"):
             x_obs = np.array(obs.get_boundary_xy()).T
@@ -245,14 +245,14 @@ def plot_obstacles(
 
         #back to normal 
         #added by thibaud to handle 3D:
-        if mn.DIM == 3:
-            obs.axes_length[[absciss, ordinate, depth]] = obs.axes_length[[0,1,2]]
-            obs.axes_with_margin[[absciss, ordinate, depth]] = obs.axes_with_margin[[0,1,2]]
-            obs.center_position[[absciss, ordinate, depth]] = obs.center_position[[0,1,2]]
-            obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
-            obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
-            obs.linear_velocity[[absciss, ordinate, depth]] = obs.linear_velocity[[0,1,2]]
-            obs.position[[absciss, ordinate, depth]] = obs.position[[0,1,2]]
+        # if mn.DIM == 3:
+        #     obs.axes_length[[absciss, ordinate, depth]] = obs.axes_length[[0,1,2]]
+        #     obs.axes_with_margin[[absciss, ordinate, depth]] = obs.axes_with_margin[[0,1,2]]
+        #     obs.center_position[[absciss, ordinate, depth]] = obs.center_position[[0,1,2]]
+        #     obs.global_reference_point[[0,1,2]] = obs.global_reference_point[[absciss, ordinate, depth]]
+        #     obs.global_relative_reference_point[[0,1,2]] = obs.global_relative_reference_point[[absciss, ordinate, depth]]
+        #     obs.linear_velocity[[absciss, ordinate, depth]] = obs.linear_velocity[[0,1,2]]
+        #     obs.position[[absciss, ordinate, depth]] = obs.position[[0,1,2]]
 
     ax.set_aspect("equal", adjustable="box")
 
