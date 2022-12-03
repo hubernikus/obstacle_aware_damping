@@ -131,7 +131,7 @@ if (__name__) == "__main__":
     for i, noise in enumerate(noise_level):
         print("noise :", noise)
         for e in range(epochs):
-            print("epoch :", e)
+            print("epoch :", e, "noise amp : ", noise)
             d_min_tab[i,e] = run_control_robot(noise_pos=0.0, noise_vel=noise)
             plt.close("all")
 

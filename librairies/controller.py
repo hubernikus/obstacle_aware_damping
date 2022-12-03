@@ -1,10 +1,11 @@
 import numpy as np
 from abc import ABC, abstractmethod
 import time
+import warnings
 
 #librairies of lukas
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
-from dynamic_obstacle_avoidance.utils import get_orthogonal_basis, warnings
+from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
 #my librairies
 from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
