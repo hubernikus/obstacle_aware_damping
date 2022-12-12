@@ -1,10 +1,12 @@
 import numpy as np
+import warnings
 
 
 #Lukas
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
 from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
+from dynamic_obstacle_avoidance.avoidance.base_avoider import BaseAvoider
 from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
 from vartools.dynamical_systems import LinearSystem
@@ -20,12 +22,15 @@ class Simulated():
         self.lambda_DS = lambda_DS
         self.lambda_perp = lambda_perp
         self.lambda_obs = lambda_obs
+        self.D = np.diag([self.lambda_DS, self.lambda_perp, self.lambda_obs])
 
 
 
-    def create_env(self, obs_pos, obs_axes_lenght, obs_vel):
+    def create_env(self, obs_pos, obs_axes_lenght, obs_vel, no_obs):
         self.obstacle_environment = ObstacleContainer()
         #other atribut for pos, vel... ?
+        if no_obs:
+            return
         for pos, axes, vel in zip(obs_pos, obs_axes_lenght, obs_vel):
             self.obstacle_environment.append(
                 Cuboid(
@@ -40,28 +45,27 @@ class Simulated():
             )
         
 
-    def create_DS_copy(self, attractor_position, A_matrix):
+    def create_DS_copy(self, attractor_position, A_matrix, max_vel):
         self.initial_dynamics = LinearSystem(
             attractor_position = attractor_position,
             A_matrix = A_matrix,
-            dimension=6,
-            maximum_velocity=None,
-            distance_decrease=0.5, #if too small, could lead to instable around atractor 
+            dimension=3,
+            maximum_velocity=max_vel,
+            distance_decrease=0.1, #if too small, could lead to instable around atractor 
         )
 
     def create_mod_avoider(self):
             self.dynamic_avoider = ModulationAvoider(
                 initial_dynamics = self.initial_dynamics,
                 obstacle_environment = self.obstacle_environment,
-            ),
+            )
 
-    def compute_D_matrix_wrt_DS(self, x):
-        #get desired velocity 
-        x_dot_des = self.dynamic_avoider.evaluate(x)
-
+    def compute_D_matrix_wrt_DS(self, x_dot_des):
+        #print("compute D wrt DS only")
         #construct the basis matrix, align to the DS direction 
         E = get_orthogonal_basis(x_dot_des)
         E_inv = np.linalg.inv(E)
+
 
         #contruct the matrix containing the damping coefficient along selective directions
         lambda_mat = np.array([[self.lambda_DS, 0.0, 0.0], 
@@ -70,19 +74,21 @@ class Simulated():
 
         #compose the damping matrix
         D = E@lambda_mat@E_inv
+        self.D = D
         return D
 
-    def compute_D_(self, x, xdot, obs_dist_list):
+    def compute_D(self, x, xdot, x_dot_des):
         EPSILON = 1e-6
+        DIM = 3
+        DIST_CRIT = 1
 
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
-        if not np.size(obs_dist_list):
-            return self.compute_D_matrix_wrt_DS(x)
+        if not len(self.obstacle_environment):
+            #print("no obs")
+            return self.compute_D_matrix_wrt_DS(x_dot_des)
 
-        #get desired velocity - THAT takes long to compute
-        x_dot_des = self.dynamic_avoider.evaluate(x)
-
-        #if the desired velocity is too small, we risk numerical issue
+        #print("compute D wrt obs")
+        #KEEP ? if the desired velocity is too small, we risk numerical issue
         if np.linalg.norm(x_dot_des) < EPSILON:
             #we just return the previous damping matrix
             return self.D
@@ -90,18 +96,32 @@ class Simulated():
         #compute the vector align to the DS
         e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
 
+
+
+        #get the normals and distance to the obstacles
+        obs_normals_list = np.empty((DIM, 0))
+        obs_dist_list = np.empty(0)
+        for obs in self.obstacle_environment:
+            #gather the parameters wrt obstacle i
+            normal = obs.get_normal_direction(x, in_obstacle_frame = False).reshape(DIM, 1)
+            obs_normals_list = np.append(obs_normals_list, normal, axis=1)
+
+            d = obs.get_distance_to_surface(x, in_obstacle_frame = False)
+            obs_dist_list = np.append(obs_dist_list, d)
+
+
         #compute vector relative to obstacles
         weight = 0
-        e2_obs = np.zeros(mn.DIM)
-        #get the normals and compute the weight of the obstacles
-        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+        e2_obs = np.zeros(DIM)
+        #compute the weight of the obstacles and resulting normal
+        for normal, dist in zip(obs_normals_list.T, obs_dist_list):
             #if dist <0 we're IN the obs
             if dist <= 0: 
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
             #keep only biggest wight -> closer obstacle
-            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            weight_i = max(0.0, 1.0 - dist/DIST_CRIT)
             if weight_i > weight:
                 weight = weight_i
 
@@ -116,22 +136,15 @@ class Simulated():
         e2_obs = e2_obs/e2_obs_norm
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
-        if mn.DIM == 2:
-            e2_DS = np.array([e1_DS[1], -e1_DS[0]])
-            # construct the basis align with the normal of the obstacle
-            # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
-            # this play a crucial role for the limit case
-            e1_obs = np.array([-e2_obs[1], e2_obs[0]])
-        else:
-            e3 = np.cross(e1_DS, e2_obs)
-            norm_e3 = np.linalg.norm(e3)
-            if not norm_e3: #limit case if e1_DS//e2_obs -> DS aligned w/ normal
-                warnings.warn("Limit case")
-                return self.D #what to do ??
-            else : 
-                e3 = e3/norm_e3
-            e2_DS = np.cross(e3, e1_DS)
-            e1_obs = np.cross(e2_obs, e3)
+        e3 = np.cross(e1_DS, e2_obs)
+        norm_e3 = np.linalg.norm(e3)
+        if not norm_e3: #limit case if e1_DS//e2_obs -> DS aligned w/ normal
+            warnings.warn("Limit case")
+            return self.D #what to do ??
+        else : 
+            e3 = e3/norm_e3
+        e2_DS = np.cross(e3, e1_DS)
+        e1_obs = np.cross(e2_obs, e3)
 
         # we want both basis to be cointained in the same half-plane /space
         # we have this liberty since we always have 2 choice when choosing a perpendiular
@@ -148,16 +161,12 @@ class Simulated():
         e2_both = e2_both/np.linalg.norm(e2_both)
 
         #extreme case sould never happen, e1, e2 are suposed to be a orthonormal basis
-        if 1 - np.abs(np.dot(e1_both, e2_both)) < mn.EPSILON:
+        if 1 - np.abs(np.dot(e1_both, e2_both)) < EPSILON:
             raise("What did trigger this, it shouldn't")
             
         #construct the basis matrix
-        if mn.DIM == 2:
-            E = np.array([e1_DS, e2_both]).T
-            E_inv = np.linalg.inv(E)
-        else :
-            E = np.array([e1_DS, e2_both, e3]).T
-            E_inv = np.linalg.inv(E)
+        E = np.array([e1_DS, e2_both, e3]).T
+        E_inv = np.linalg.inv(E)
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS #(1-weight)*self.lambda_DS #good ??
@@ -169,14 +178,12 @@ class Simulated():
             lambda_2 = self.lambda_perp
 
         #contruct the matrix containing the damping coefficient along selective directions
-        if mn.DIM == 2:
-            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
-        else:
-            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
-                                   [0.0, lambda_2, 0.0],
-                                   [0.0, 0.0, lambda_3]])
+        lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+                                [0.0, lambda_2, 0.0],
+                                [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
         D = E@lambda_mat@E_inv
+        self.D = D
         return D
 

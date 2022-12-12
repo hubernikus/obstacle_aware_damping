@@ -252,7 +252,7 @@ class TrackingController(Controller):
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            #keep only biggest wight -> closer obstacle
+            #keep only biggest weight -> closer obstacle
             weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
             if weight_i > weight:
                 weight = weight_i
@@ -312,7 +312,8 @@ class TrackingController(Controller):
             E_inv = np.linalg.inv(E)
 
         #compute the damping coeficients along selective directions
-        lambda_1 = self.lambda_DS #(1-weight)*self.lambda_DS #good ??
+        lambda_1 = self.lambda_DS 
+        #lambda_1 = (1-weight)*self.lambda_DS #good ??
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
         lambda_3 = self.lambda_perp
 
