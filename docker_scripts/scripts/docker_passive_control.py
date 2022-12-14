@@ -30,26 +30,15 @@ class PassiveController(Node):
         self.command = CommandMessage()
         self.command.control_type = [ControlType.EFFORT.value]
 
-        #create DS type xdot = -A(x - x_atr), now x is in 6d
-        #no need, remoove when posible
-        # self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
-        # A_matrix = np.diag([50.0, 50.0, 50.0, 10.0, 10.0, 10.0]) 
-        # self.ds.set_parameter_value(
-        #     "gain", np.diag(A_matrix), sr.ParameterType.DOUBLE_ARRAY #standart linear DS
-        # )
-
-        #create a controller : is there a type t_c = G - D(xdot - f(x)) ??
+        #initialize controller : t_c = I*x_dd + D*x_d + K*x
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.IMPEDANCE)
-
         self.ctrl.set_parameter_value("damping", np.zeros((6,6)), sr.ParameterType.MATRIX)
         self.ctrl.set_parameter_value("stiffness", np.zeros((6,6)), sr.ParameterType.MATRIX)
         self.ctrl.set_parameter_value("inertia", np.zeros((6,6)), sr.ParameterType.MATRIX)
 
-        #usefull to get methods
-        print(dir(self.ctrl))
-
-        # print("## PARAMS CTRL ## : ", self.ctrl.get_parameters())
-        #print("## PARAMS CTRL NEW ## : ", self.ctrl.get_parameters())
+        #usefull to print
+        #print("methods : ", dir(self.ctrl))
+        #print("PARAMS CTRL : ", self.ctrl.get_parameters())
 
         #sim is an instance containing the virtual copy of all the elements, used to compute D
         self.sim = Simulated(
@@ -62,30 +51,28 @@ class PassiveController(Node):
         obs_position = np.array([[0.5, 0.0, 0.0]]) #these are N x 3
         obs_axes_lenght = np.array([[10., 0.3, 1.0]])
         obs_vel = np.array([[0.0, 0.0, 0.0]])
-        
-        #to test without obs
-        no_obs = False
+        no_obs = False #to disable obstacles
         self.sim.create_env(obs_position, obs_axes_lenght, obs_vel, no_obs)
 
-        #create the DS that is understood by the mod. avoider !!!! NOT FORGET minus (!= cpp )
-        self.A = -np.diag([1.0, 1.0, 1.0])
+        #create the DS, NOT FORGET minus !!! (!= cpp )
+        self.A_matrix = -np.diag([1.0, 1.0, 1.0])
         self.attractor_A = np.array([0.5, 0.5, 0.3])
         self.attractor_B = np.array([0.5, -0.5, 0.3])
         self.attractor_position = self.attractor_A
         self.attrator_quaternion = np.array([0.0, 0.0, 0.0, 0.0])
         self.max_vel = 0.5
-        self.sim.create_DS_copy(self.attractor_position, self.A, self.max_vel)
+        self.sim.create_DS_copy(self.attractor_position, self.A_matrix, self.max_vel)
 
         #create modulation avoider to modulate final DS
         self.sim.create_mod_avoider()
 
         #to compare - remooove when debuged
-        self.ctrl_ref = create_cartesian_controller(CONTROLLER_TYPE.DISSIPATIVE)
-        self.ctrl_ref.set_parameter_value("eigenvalues", np.diag([20, 2, 2, 1, 1, 1]), sr.ParameterType.MATRIX)
-        self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
-        self.ds.set_parameter_value(
-             "gain", [1, 1, 1, 0.1, 0.1, 0.1], sr.ParameterType.DOUBLE_ARRAY #standart linear DS
-        )
+        # self.ctrl_ref = create_cartesian_controller(CONTROLLER_TYPE.DISSIPATIVE)
+        # self.ctrl_ref.set_parameter_value("eigenvalues", np.diag([20, 2, 2, 1, 1, 1]), sr.ParameterType.MATRIX)
+        # self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
+        # self.ds.set_parameter_value(
+        #      "gain", [1, 1, 1, 0.1, 0.1, 0.1], sr.ParameterType.DOUBLE_ARRAY #standart linear DS
+        # )
 
 
 
@@ -98,11 +85,9 @@ class PassiveController(Node):
             state = self.robot.get_state()
             if not state:
                 continue
-            #print("yo")
-            #useless remoove when done
             if False:
                 pass
-            #below, comment when debug
+            #below, usefull when ds in in cpp
             # if not target_set:
             #     target = sr.CartesianPose(
             #         state.ee_state.get_name(),
@@ -119,117 +104,51 @@ class PassiveController(Node):
             #     #print("### DS ###", self.ds.get_parameters())
             #     target_set = True
             else:
-                #get current state
-                #x = state.ee_state.get_position()
-                # x_dot = state.ee_state.get_linear_velocity()
-                #print("x : ", x)
-                # print("xdot : ", x_dot)
+                ### CONTROL LOOP ### 
 
-                #get xdot_des of the MODULATED DS
-                #x = state.ee_state.get_pose()
-                #print(x)
-                #print(dir(state.ee_state))
-                #print(dir(self.sim.obstacle_environment))
-                # x_dot_des = self.sim.dynamic_avoider.evaluate(state.ee_state.get_position())
-                # print(x_dot_des)
-                #compute D
-
-                #https://epfl-lasa.github.io/control-libraries/versions/main/_dissipative_8hpp_source.html
-                #l163 : template<class S>
-                # void Dissipative<S>::compute_damping(const S& desired_velocity) {
-                # this->basis_ = this->compute_orthonormal_basis(desired_velocity);
-                # auto diagonal_eigenvalues = this->damping_eigenvalues_->get_value().asDiagonal();
-                # this->damping_->set_value(this->basis_ * diagonal_eigenvalues * this->basis_.transpose());
-                # }
-
-                #print(self.ctrl.get_parameter_value("damping"))
-                #print(self.ctrl.get_parameter_value("damping_eigenvalues"))
-
-                #here control happen
-                # print("\n state pos :", state.ee_state.get_position())
-                # print("\n state vel :", state.ee_state.get_linear_velocity())
-                # print("\n evaluate :", self.ds.evaluate(state.ee_state))
-                #twist contains lin + ang speed evaluated by DS
-
-
-                #################
-
-                #1. get the pose, vel from the state
+                #0. get the pose from the state
                 x = state.ee_state.get_pose()   
-                #print(type(state.ee_state))
+
+                #extract the position and velocity
                 pos = x[0:3]
+                pos_dot = state.ee_state.get_linear_velocity()
+
+                #extract the angle
                 r = R.from_quat(x[3:7])
-                #print(pos)
                 ang = r.as_euler('zyx', degrees=False) #not sure which format
 
-                pos_dot = state.ee_state.get_linear_velocity()
-                #ang_dot = state.ee_state.get_angular_velocity()
-
-                #print(ang_dot)
-                #print(pos_dot)
-                #print(x)
-
-                #print(ang)
-                #print("position", pos)
 
                 #1. compute desired velocity in cartesian coord
-                print("actual position : ", pos, " and ang : ", ang)
-                print("actual vel : ", pos_dot)
                 pos_dot_des = self.sim.dynamic_avoider.evaluate(pos)
-                print("des_vel by avoider", pos_dot_des)
+    
+                print("actual position : ", pos, " and ang : ", ang, " actual vel : ", pos_dot, " des_vel by avoider", pos_dot_des)
 
-                #2. compute the damping matrix
+                #2. compute the damping matrix and gains
                 D = self.sim.compute_D(pos, pos_dot, pos_dot_des)
-                #print("des_vel by avoider after ",pos_dot_des)
                 KD_ang = np.diag([1] *3)
                 big_D = np.zeros((6,6))
                 big_D[0:3, 0:3] = D
                 big_D[3:6, 3:6] = KD_ang
-                #print(big_D)
 
                 #3. build the K matrix
                 big_K = np.zeros((6,6)) 
-                KP_ang = np.diag([1000] *3)
+                KP_ang = np.diag([500] *3)
                 big_K[3:6, 3:6] = KP_ang
 
                 #3. assign them to the robot
                 self.ctrl.set_parameter_value("damping", big_D, sr.ParameterType.MATRIX)
                 self.ctrl.set_parameter_value("stiffness", big_K, sr.ParameterType.MATRIX)
 
+                #print("## PARAMS CTRL NEW ## : ", self.ctrl.get_parameters())
 
                 #4. construct des_ee_state
                 des_ee_state = sr.CartesianState(
                     state.ee_state.get_name(),
                     state.ee_state.get_reference_frame(),
                 )
-                des_ee_state.set_pose(np.concatenate((np.zeros(3), self.attrator_quaternion))) #matrix 7x1
+                des_ee_state.set_pose(np.concatenate((np.zeros(3), self.attrator_quaternion))) #vector 7x1
                 des_ee_state.set_linear_velocity(pos_dot_des)
                 des_ee_state.set_angular_velocity(np.zeros(3))
-                #des_ee_state.clamp(0.25, 0.5) #just added, need test
-                #print("des vel", des_ee_state.get_linear_velocity())
-                #print("real vel", state.ee_state.get_linear_velocity())
-                #print("my des state : ", des_ee_state)
-                #################
-
-                #print("## PARAMS CTRL NEW ## : ", self.ctrl.get_parameters())
-                
-                #comparison ####
-                #ds_ret = self.ds.evaluate(state.ee_state)
-                #print(type(ds_ret)) #state_representation.CartesianState
-                #print("cpp ds : ", ds_ret)
-                # print("cpp ds twist : ", sr.CartesianTwist(ds_ret))
-                #twist = sr.CartesianTwist(ds_ret)
-                # sr.CartesianTwist
-                # com_ref = sr.JointTorques(
-                #     self.ctrl_ref.compute_command(ds_ret, state.ee_state, state.jacobian)
-                # )
-                #self.command.joint_state.set_torques(com_ref.get_torques())
-                ####
-
-                #print("\n com. torque ref", com_ref.get_torques())
-                # print("\n twist", twist)
-                #twist.clamp(0.25, 0.5)
-                #command_torques has name 1->7 of joint + torque array 1x7
 
                 #5. compute the command with the impedance controller
                 self.command_torques = sr.JointTorques(
@@ -242,11 +161,11 @@ class PassiveController(Node):
                 self.command.joint_state.set_torques(self.command_torques.get_torques())
                 self.robot.send_command(self.command)
 
-                #7. switch atractor if converge
+                #7. switch atractor if converged
                 EPS = 1e-2
-                print("curent atractor position : ", self.attractor_position)
+                #print("current atractor position : ", self.attractor_position)
                 if np.linalg.norm(pos - self.attractor_position) <= EPS:
-                    print("SWICH")
+                    #print("SWICH")
                     if atr_a:
                         self.attractor_position = self.attractor_B
                         atr_a = False
@@ -255,10 +174,21 @@ class PassiveController(Node):
                         atr_a = True
 
                     #update the DS
-                    self.sim.create_DS_copy(self.attractor_position, self.A, self.max_vel)
+                    self.sim.create_DS_copy(self.attractor_position, self.A_matrix, self.max_vel)
 
                     #update the modulation avoider to modulate final DS
                     self.sim.create_mod_avoider()
+
+                #comparison with cpp#
+                #ds_ret = self.ds.evaluate(state.ee_state)
+                # sr.CartesianTwist
+                # com_ref = sr.JointTorques(
+                #     self.ctrl_ref.compute_command(ds_ret, state.ee_state, state.jacobian)
+                # )
+                #self.command.joint_state.set_torques(com_ref.get_torques())
+                ##command_torques has name 1->7 of joint + torque array 1x7
+                #self.robot.send_command(self.command)
+                ###
 
 
             self.rate.sleep()
