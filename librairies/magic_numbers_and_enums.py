@@ -27,14 +27,7 @@ DELTA_Z = 0.01      #smoothness parameter
 QOLO_LENGHT_X = 0.4
 
 #EVERYTHING
-DIM = 3 #NEED TO CHANGE HERE TO SWITCH IN 3D
 EPSILON = 1e-6
-if DIM == 2:
-    #G = np.array([0.0, -9.81])
-    G = np.zeros(DIM)
-else:
-    #G = np.array([0.0, -9.81, 0.0])
-    G = np.zeros(DIM)
 
 ##################
 ## ENUM CLASSES ##

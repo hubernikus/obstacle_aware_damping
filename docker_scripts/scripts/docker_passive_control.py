@@ -21,7 +21,7 @@ from dynamic_obstacle_avoidance.avoidance.base_avoider import BaseAvoider
 # My custom librairies 
 from librairies.docker_helper import Simulated
 
-class PassiveController(Node):
+class PassiveObsController(Node):
     def __init__(self, robot, freq: float = 100, node_name="passive_controller"):
         super().__init__(node_name)
         self.robot = robot
@@ -30,7 +30,7 @@ class PassiveController(Node):
         self.command = CommandMessage()
         self.command.control_type = [ControlType.EFFORT.value]
 
-        #initialize controller : t_c = I*x_dd + D*x_d + K*x
+        #initialize controller : Fcomannd = I*x_dd + D*x_d + K*x
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.IMPEDANCE)
         self.ctrl.set_parameter_value("damping", np.zeros((6,6)), sr.ParameterType.MATRIX)
         self.ctrl.set_parameter_value("stiffness", np.zeros((6,6)), sr.ParameterType.MATRIX)
@@ -48,18 +48,18 @@ class PassiveController(Node):
         )
 
         #create obstacle env
-        obs_position = np.array([[0.5, 0.0, 0.0]]) #these are N x 3
-        obs_axes_lenght = np.array([[10., 0.3, 1.0]])
-        obs_vel = np.array([[0.0, 0.0, 0.0]])
+        obs_position = np.array([[0.5, 0.0, 0.0], [0.5, 0., 0.3]]) #these are N x 3
+        obs_axes_lenght = np.array([[0.25] *3, [0.25] *3]) #for plot need to be all equal -> sphere, its the radius
+        obs_vel = np.array([[0.0] * 3, [0.0] * 3])
         no_obs = False #to disable obstacles
-        self.sim.create_env(obs_position, obs_axes_lenght, obs_vel, no_obs)
+        self.obstacle_env = self.sim.create_env(obs_position, obs_axes_lenght, obs_vel, no_obs)
 
         #create the DS, NOT FORGET minus !!! (!= cpp )
         self.A_matrix = -np.diag([1.0, 1.0, 1.0])
         self.attractor_A = np.array([0.5, 0.5, 0.3])
         self.attractor_B = np.array([0.5, -0.5, 0.3])
         self.attractor_position = self.attractor_A
-        self.attrator_quaternion = np.array([0.0, 0.0, 0.0, 0.0])
+        self.attrator_quaternion = np.array([0.0, 0.0, 1.0, 0.0])
         self.max_vel = 0.5
         self.sim.create_DS_copy(self.attractor_position, self.A_matrix, self.max_vel)
 
@@ -111,6 +111,7 @@ class PassiveController(Node):
 
                 #extract the position and velocity
                 pos = x[0:3]
+                print(pos)
                 pos_dot = state.ee_state.get_linear_velocity()
 
                 #extract the angle
@@ -121,7 +122,7 @@ class PassiveController(Node):
                 #1. compute desired velocity in cartesian coord
                 pos_dot_des = self.sim.dynamic_avoider.evaluate(pos)
     
-                print("actual position : ", pos, " and ang : ", ang, " actual vel : ", pos_dot, " des_vel by avoider", pos_dot_des)
+                #print("actual position : ", pos, " and ang : ", x[3:7], " actual vel : ", pos_dot, " des_vel by avoider", pos_dot_des)
 
                 #2. compute the damping matrix and gains
                 D = self.sim.compute_D(pos, pos_dot, pos_dot_des)
@@ -132,7 +133,7 @@ class PassiveController(Node):
 
                 #3. build the K matrix
                 big_K = np.zeros((6,6)) 
-                KP_ang = np.diag([500] *3)
+                KP_ang = np.diag([50] *3)
                 big_K[3:6, 3:6] = KP_ang
 
                 #3. assign them to the robot
@@ -161,8 +162,15 @@ class PassiveController(Node):
                 self.command.joint_state.set_torques(self.command_torques.get_torques())
                 self.robot.send_command(self.command)
 
-                #7. switch atractor if converged
-                EPS = 1e-2
+                #7. draw obs
+                self.obstacle_env.update_obstacles()
+
+                #8. switch atractor if converged
+                EPS = 1e-1
+                if atr_a:
+                    print("A")
+                else:
+                    print("B")
                 #print("current atractor position : ", self.attractor_position)
                 if np.linalg.norm(pos - self.attractor_position) <= EPS:
                     #print("SWICH")
@@ -179,6 +187,7 @@ class PassiveController(Node):
                     #update the modulation avoider to modulate final DS
                     self.sim.create_mod_avoider()
 
+
                 #comparison with cpp#
                 #ds_ret = self.ds.evaluate(state.ee_state)
                 # sr.CartesianTwist
@@ -192,6 +201,7 @@ class PassiveController(Node):
 
 
             self.rate.sleep()
+        self.obstacle_env.shutdown()
 
 
 if __name__ == "__main__":
@@ -200,7 +210,7 @@ if __name__ == "__main__":
     robot_interface = RobotInterface("*:1601", "*:1602") #16 is for the first franka robot
 
     # Spin in a separate thread
-    controller = PassiveController(robot=robot_interface, freq=500)
+    controller = PassiveObsController(robot=robot_interface, freq=500)
 
     thread = threading.Thread(target=rclpy.spin, args=(controller,), daemon=True)
     thread.start()
@@ -210,6 +220,6 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         pass
-
+    
     rclpy.shutdown()
     thread.join()

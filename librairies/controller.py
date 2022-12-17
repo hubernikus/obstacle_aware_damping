@@ -28,17 +28,29 @@ class RegulationController(Controller):
     """
     def __init__(
         self,
-        D = 10*np.eye(mn.DIM), 
-        K = 100*np.eye(mn.DIM),
+        DIM = 2,
+        D = None, 
+        K = None,
+        G = None,
     ):
+        self.DIM = DIM
         self.D = D
+        if D is None:
+            self.D = 10*np.eye(self.DIM)
+
         self.K = K
+        if K is None:
+            self.K = 100*np.eye(self.DIM)
+        
+        self.G = G
+        if G is None:
+            self.G = np.zeros(self.DIM)
 
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the regulation controller,
         """
-        return mn.G - np.matmul(self.D, xdot) - np.matmul(self.K, x)
+        return self.G - np.matmul(self.D, xdot) - np.matmul(self.K, x)
 
 
 class TrackingController(Controller):
@@ -49,6 +61,8 @@ class TrackingController(Controller):
     def __init__(
         self,
         dynamic_avoider:ModulationAvoider,
+        DIM = 2,
+        G = None,
         lambda_DS = 100.0, #to follow DS line
         lambda_perp = 20.0, #compliance perp to DS or obs
         lambda_obs = mn.LAMBDA_MAX,
@@ -57,23 +71,29 @@ class TrackingController(Controller):
         with_E_storage = False,
         
     ):
+        self.DIM = DIM
+
         self.dynamic_avoider = dynamic_avoider
+
+        self.G = G
+        if G is None:
+            self.G = np.zeros(self.DIM)
 
         self.lambda_DS = lambda_DS
         self.lambda_perp = lambda_perp
         self.lambda_obs = lambda_obs
 
-        if mn.DIM == 2:
+        if self.DIM == 2:
             self.D = np.array([[self.lambda_DS, 0.0],
                                [0.0, self.lambda_perp]])
-        elif mn.DIM == 3:
+        elif self.DIM == 3:
             self.D = np.array([[self.lambda_DS, 0.0, 0.0],
                                [0.0, self.lambda_perp, 0.0],
                                [0.0, 0.0, self.lambda_perp]])
         else:
             raise NotImplementedError("unknown dimension")
 
-        self.obs_normals_list = np.empty((mn.DIM, 0))
+        self.obs_normals_list = np.empty((self.DIM, 0))
         self.obs_dist_list = np.empty(0)
 
         self.type_of_D_matrix = type_of_D_matrix
@@ -92,7 +112,7 @@ class TrackingController(Controller):
     
         if not self.with_E_storage:
             x_dot_des = self.dynamic_avoider.evaluate(x)
-            tau_c = mn.G - self.D@(xdot - x_dot_des)
+            tau_c = self.G - self.D@(xdot - x_dot_des)
 
             #physical constrains, value ? -> laisser ???
             tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
@@ -103,7 +123,7 @@ class TrackingController(Controller):
         f_c, f_r = self.decomp_f(x)
         beta_r = self.get_beta_r()
 
-        tau_c = mn.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+        tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
         #limit tau_c ?? physical constrains
 
         return tau_c
@@ -141,7 +161,7 @@ class TrackingController(Controller):
         E_inv = np.linalg.inv(E)
 
         #contruct the matrix containing the damping coefficient along selective directions
-        if mn.DIM == 2:
+        if self.DIM == 2:
             lambda_mat = np.array([[self.lambda_DS, 0.0],
                                    [0.0, self.lambda_perp]])
         else:
@@ -159,7 +179,7 @@ class TrackingController(Controller):
             return self.D
         
         weight = 0
-        e2 = np.zeros(mn.DIM)
+        e2 = np.zeros(self.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -183,7 +203,7 @@ class TrackingController(Controller):
 
         #construct the basis matrix, align with the normal of the obstacle
         
-        if mn.DIM == 2:
+        if self.DIM == 2:
             e1 = np.array([e2[1], -e2[0]])
             E = np.array([e1, e2]).T
             E_inv = np.linalg.inv(E)
@@ -205,7 +225,7 @@ class TrackingController(Controller):
             lambda_2 = self.lambda_perp
 
         #contruct the matrix containing the damping coefficient along selective directions
-        if mn.DIM == 2:
+        if self.DIM == 2:
             lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
             lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
@@ -244,7 +264,7 @@ class TrackingController(Controller):
 
         #compute vector relative to obstacles
         weight = 0
-        e2_obs = np.zeros(mn.DIM)
+        e2_obs = np.zeros(self.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -268,7 +288,7 @@ class TrackingController(Controller):
         e2_obs = e2_obs/e2_obs_norm
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
-        if mn.DIM == 2:
+        if self.DIM == 2:
             e2_DS = np.array([e1_DS[1], -e1_DS[0]])
             # construct the basis align with the normal of the obstacle
             # not that the normal to e2_obs is volontarly computed unlike the normal to e1_DS
@@ -304,7 +324,7 @@ class TrackingController(Controller):
             raise("What did trigger this, it shouldn't")
             
         #construct the basis matrix
-        if mn.DIM == 2:
+        if self.DIM == 2:
             E = np.array([e1_DS, e2_both]).T
             E_inv = np.linalg.inv(E)
         else :
@@ -322,7 +342,7 @@ class TrackingController(Controller):
             lambda_2 = self.lambda_perp
 
         #contruct the matrix containing the damping coefficient along selective directions
-        if mn.DIM == 2:
+        if self.DIM == 2:
             lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
             lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
@@ -351,7 +371,7 @@ class TrackingController(Controller):
         
         #compute vector relative to obstacles
         weight = 0
-        e2_obs = np.zeros(mn.DIM)
+        e2_obs = np.zeros(self.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -376,7 +396,7 @@ class TrackingController(Controller):
 
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
-        if mn.DIM == 2:
+        if self.DIM == 2:
             e2_DS = np.array([e1_DS[1], -e1_DS[0]])
         else:
             e3 = np.cross(e1_DS, e2_obs)
@@ -402,7 +422,7 @@ class TrackingController(Controller):
             return self.D
 
         #construct the basis matrix
-        if mn.DIM == 2:
+        if self.DIM == 2:
             E = np.array([e1_DS, e2_both]).T
             E_inv = np.linalg.inv(E)
         else :
@@ -426,7 +446,7 @@ class TrackingController(Controller):
             pass
         
         #contruct the matrix containing the damping coefficient along selective directions
-        if mn.DIM == 2:
+        if self.DIM == 2:
             lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
             lambda_mat = np.array([[lambda_1, 0.0, 0.0], 

@@ -28,33 +28,35 @@ class CotrolledRobotAnimation(Animator):
         self,
         robot:Robot,
         obstacle_environment:ObstacleContainer,
+        DIM = 2,
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
         disturbance_scaling = 200.0,
         draw_ideal_traj = False,
         draw_qolo = False,
         rotate_qolo = False
-    ):
+    ):  
+        self.DIM = DIM
         self.x_lim = x_lim
         self.y_lim = y_lim
 
         self.robot = robot
         self.obstacle_environment = obstacle_environment
 
-        self.position_list = np.zeros((mn.DIM, self.it_max + 1))
-        self.position_list[:, 0] = robot.x.reshape((mn.DIM,))
-        self.velocity_list = np.zeros((mn.DIM, self.it_max + 1))
-        self.velocity_list[:, 0] = robot.xdot.reshape((mn.DIM,))
+        self.position_list = np.zeros((self.DIM, self.it_max + 1))
+        self.position_list[:, 0] = robot.x.reshape((self.DIM,))
+        self.velocity_list = np.zeros((self.DIM, self.it_max + 1))
+        self.velocity_list[:, 0] = robot.xdot.reshape((self.DIM,))
 
-        self.disturbance_list = np.empty((mn.DIM, 0))
-        self.disturbance_pos_list = np.empty((mn.DIM, 0))
+        self.disturbance_list = np.empty((self.DIM, 0))
+        self.disturbance_pos_list = np.empty((self.DIM, 0))
         self.new_disturbance = False
         self.x_press_disturbance = None
         self.y_press_disturbance = None
         self.disturbance_scaling = disturbance_scaling
 
-        self.position_list_ideal = np.zeros((mn.DIM, self.it_max + 1))
-        self.position_list_ideal[:, 0] = robot.x.reshape((mn.DIM,))
+        self.position_list_ideal = np.zeros((self.DIM, self.it_max + 1))
+        self.position_list_ideal[:, 0] = robot.x.reshape((self.DIM,))
 
         self.draw_ideal_traj = draw_ideal_traj
 
@@ -67,7 +69,7 @@ class CotrolledRobotAnimation(Animator):
         self.qolo_length_x = mn.QOLO_LENGHT_X
         self.qolo_length_y = (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x
 
-        if mn.DIM == 2:
+        if self.DIM == 2:
             self.fig, self.ax = plt.subplots(figsize=(10, 8))
         else:
             self.fig, self.ax = plt.subplots(1,2,figsize=(14, 7))
@@ -94,12 +96,12 @@ class CotrolledRobotAnimation(Animator):
         if self.new_disturbance:
             self.disturbance_pos_list = np.append(
                 self.disturbance_pos_list, 
-                self.position_list[:,ii].reshape((mn.DIM, 1)), axis = 1
+                self.position_list[:,ii].reshape((self.DIM, 1)), axis = 1
             )
             self.new_disturbance = False
         
         #get the normal + distance of the obstacles for the D_matrix of the controller
-        self.robot.controller.obs_normals_list = np.empty((mn.DIM, 0))
+        self.robot.controller.obs_normals_list = np.empty((self.DIM, 0))
         self.robot.controller.obs_dist_list =np.empty(0)
 
         for obs in self.obstacle_environment:
@@ -107,16 +109,24 @@ class CotrolledRobotAnimation(Animator):
             normal = obs.get_normal_direction(
                     self.position_list[:, ii],
                     in_obstacle_frame = False,
-                ).reshape(mn.DIM, 1)
+                ).reshape(self.DIM, 1)
             self.robot.controller.obs_normals_list = np.append(
                 self.robot.controller.obs_normals_list,
                 normal,
                 axis=1,
             )
-            d = obs.get_distance_to_surface(
-                    self.position_list[:, ii],
-                    in_obstacle_frame = False,
-            )
+            # d = obs.get_distance_to_surface(
+            #     self.position_list[:, ii],
+            #     in_obstacle_frame = False,
+            # )
+            # print(d)
+
+            #get_gamma works for all? obstacles
+            d = obs.get_gamma(
+                self.position_list[:, ii],
+                in_obstacle_frame = False,                
+            ) - 1
+            #print(d, "\n")
             self.robot.controller.obs_dist_list = np.append(
                 self.robot.controller.obs_dist_list,
                 d,
@@ -143,7 +153,7 @@ class CotrolledRobotAnimation(Animator):
         #################
         #### CLEARING ###
         #################
-        if mn.DIM == 2:
+        if self.DIM == 2:
             self.ax.clear()
         else:
             for ax in self.ax:
@@ -153,7 +163,7 @@ class CotrolledRobotAnimation(Animator):
         ### PLOTTING ###
         ################
 
-        if mn.DIM == 2:
+        if self.DIM == 2:
             self.plot_anim_2D(ii)
         else:
             self.plot_anim_3D(ii)
@@ -522,7 +532,7 @@ class CotrolledRobotAnimation(Animator):
         if event.xdata is None:
             return
         
-        if mn.DIM == 2:
+        if self.DIM == 2:
             disturbance = np.array(
                 [event.xdata - self.x_press_disturbance,
                  event.ydata - self.y_press_disturbance]
@@ -546,34 +556,34 @@ class CotrolledRobotAnimation(Animator):
             return
         #print("disturbance : ", disturbance)
         self.robot.tau_e = disturbance
-        self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+        self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
         self.new_disturbance = True
 
     def artificial_disturbances(self, ii):
         if ii == 25:
             disturbance = np.array([-3.,0.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
         if ii == 35:
             disturbance = np.array([-3.,0.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
         if ii == 90:
             disturbance = np.array([2.,-4.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
         if ii == 100:
             disturbance = np.array([2.,-4.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
         # if ii == 140:
         #     disturbance = np.array([2.,1])*self.disturbance_scaling
         #     self.robot.tau_e = disturbance
-        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(mn.DIM,1), axis=1)
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
         #     self.new_disturbance = True
 
     def get_d_min(self):

@@ -21,6 +21,7 @@ import librairies.magic_numbers_and_enums as mn
 from librairies.robot_animation import s_list
 
 def run_control_robot():
+    DIM = 2
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
     #initial condition
@@ -47,7 +48,19 @@ def run_control_robot():
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.5, 0.5],
-            center_position=np.array([0.0, 2.0]),
+            center_position=np.array([0.0, 1.5]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 0.5]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.3, 0.3],
+            center_position=np.array([1.0, 0.2]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -72,15 +85,7 @@ def run_control_robot():
     if lambda_DS > mn.LAMBDA_MAX or lambda_perp > mn.LAMBDA_MAX or lambda_obs > mn.LAMBDA_MAX:
         raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
 
-
-    ### ROBOT 1 : tau_c = 0, no command ###
-    robot_not_controlled = Robot(
-        x = x_init, 
-        xdot = xdot_init, 
-        dt = dt_simulation,
-    ) 
-
-    ### ROBOT 2 : tau_c regulates robot to origin ###
+    ### ROBOT 1 : tau_c regulates robot to origin ###
     #--> no more suported
     D = 10*np.eye(2) #damping matrix
     robot_regulated = Robot(
@@ -88,12 +93,14 @@ def run_control_robot():
         xdot = xdot_init, 
         dt = dt_simulation,
         controller = RegulationController(
+            DIM = DIM,
             D=D,
         ),
     )
 
-    ### ROBOT 3 : controlled via DS ###
+    ### ROBOT 2 : controlled via DS ###
     robot_tracked = Robot(
+        DIM = DIM,
         x = x_init, 
         xdot = xdot_init, 
         dt = dt_simulation,
@@ -103,6 +110,7 @@ def run_control_robot():
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
             ),
+            DIM = DIM,
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
@@ -122,6 +130,7 @@ def run_control_robot():
     my_animation.setup(
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
+        DIM = 2,
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
         draw_ideal_traj = False, 
@@ -135,6 +144,7 @@ def run_control_robot_3D():
     """
     same but in 3d
     """
+    DIM = 3
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
     #initial condition
@@ -150,7 +160,7 @@ def run_control_robot_3D():
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.6, 0.6, 0.6],
-            center_position=np.array([0.0, -0.1, 0.0]), #z 0.1
+            center_position=np.array([0.1, -0.1, 0.1]), #z 0.1
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -159,18 +169,18 @@ def run_control_robot_3D():
             # repulsion_coeff=1.4,
         )
     )
-    # obstacle_environment.append(
-    #     Cuboid(
-    #         axes_length=[0.5, 0.5, 1.0],
-    #         center_position=np.array([0.0, -0.5, 0.5]),
-    #         # center_position=np.array([0.9, 0.25]),
-    #         margin_absolut=0.15,
-    #         # orientation=10 * pi / 180,
-    #         linear_velocity = np.array([0.0, 0.0, 0.0]), #necessary to specify in 3D (even when 0.0)
-    #         tail_effect=False,
-    #         # repulsion_coeff=1.4,
-    #     )
-    # )
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.5, 0.3, 1.0],
+            center_position=np.array([1.0, -0.3, 1.0]), #BUG x = z 
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            linear_velocity = np.array([0.0, 0.0, 0.0]), #necessary to specify in 3D (even when 0.0)
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
 
     #setup of dynamical system
     initial_dynamics = LinearSystem(
@@ -191,6 +201,7 @@ def run_control_robot_3D():
 
     ### ROBOT 3 : controlled via DS ###
     robot_tracked = Robot(
+        DIM = DIM,
         x = x_init, 
         xdot = xdot_init, 
         dt = dt_simulation,
@@ -200,6 +211,7 @@ def run_control_robot_3D():
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
             ),
+            DIM = 3,
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
@@ -219,6 +231,7 @@ def run_control_robot_3D():
     my_animation.setup(
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
+        DIM = 3,
         x_lim = [-3, 3],
         y_lim = [-2.1, 2.1],
         draw_ideal_traj = False, 
@@ -233,10 +246,8 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    #run_control_robot()
-
-    #/!\ to use need to change DIM = 3 in magicnumber file
     run_control_robot_3D()
+    #run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better
     #fig, ax = plt.subplots()

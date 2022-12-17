@@ -11,35 +11,54 @@ class Robot:
     """
     def __init__(
         self,
-        M = np.eye(mn.DIM),
-        #C = 10*np.eye(mn.DIM), # with damping 
-        C = np.zeros((mn.DIM,mn.DIM)),
-
-        tau_c = np.zeros(mn.DIM),  #control torque
-        tau_e = np.zeros(mn.DIM),  #external disturbance torque
+        DIM = 2,
+        M = None,
+        #C = 10*np.eye(self.DIM), # with damping 
+        C = None,
+        G = None,
 
         controller:TrackingController = None,
 
-        x = np.zeros(mn.DIM),      #curent position
-        xdot = np.zeros(mn.DIM),   #current velocity
+        x = None,      #curent position
+        xdot = None,   #current velocity
 
         dt = 0.01,
 
         noisy = False,
     ):
-        self.M = M
-        self.M_inv = np.linalg.inv(self.M)
-        self.C = C
+        self.DIM = DIM
 
+        self.M = M
+        if M is None:
+            self.M = np.eye(self.DIM)
+  
+        self.M_inv = np.linalg.inv(self.M)
+        
+        self.C = C
+        if C is None:
+            self.C = np.zeros((self.DIM,self.DIM))
+
+        self.G = G
+        if G is None:
+            self.G = np.zeros(self.DIM)
+
+        if controller is None:
+            raise ValueError("Specify a controller")
         self.controller = controller
 
         self.x = x
+        if x is None:
+            self.x = np.zeros(self.DIM)
+        
         self.xdot = xdot
+        if xdot is None:
+            self.xdot = np.zeros(self.DIM)
 
         self.dt = dt
 
-        self.tau_c = tau_c
-        self.tau_e = tau_e
+        self.tau_c = np.zeros(self.DIM)  #control torque
+        self.tau_e = np.zeros(self.DIM)  #external disturbance torque            
+
 
         self.noisy = noisy
 
@@ -82,14 +101,14 @@ class Robot:
 
         #reset the disturbance, because taken account of it in rk4_step() 
         # i.e. disturbance are ponctual, only applied once to the system
-        self.tau_e = np.zeros(mn.DIM)
+        self.tau_e = np.zeros(self.DIM)
 
     def func_dyn(self, pos, vel, time): 
         """
         Use by the Runge Kutta algorithm to evaluate the position&velocity at the next time step
         Func_dyn represents the right-hand side of the dynamic equation of the robot x'' = F(x,xdot,t)
         """
-        return (self.tau_c + self.tau_e - mn.G - self.C@vel)@self.M_inv
+        return (self.tau_c + self.tau_e - self.G - self.C@vel)@self.M_inv
 
     def rk4_step(self):
         """
@@ -125,8 +144,8 @@ class Robot:
 
     def measure_pos_vel(self):
         if self.noisy:
-            x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,mn.DIM)
-            xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,mn.DIM)
+            x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,self.DIM)
+            xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,self.DIM)
         else:
             x = self.x
             xdot = self.xdot

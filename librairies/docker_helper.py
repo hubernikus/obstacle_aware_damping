@@ -5,11 +5,16 @@ import warnings
 #Lukas
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
 from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
+from dynamic_obstacle_avoidance.obstacles import EllipseWithAxes as Ellipse
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
 from dynamic_obstacle_avoidance.avoidance.base_avoider import BaseAvoider
 from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
 from vartools.dynamical_systems import LinearSystem
+
+#new for obs viz
+from franka_avoidance.optitrack_container import OptitrackContainer
+from franka_avoidance.pybullet_handler import PybulletHandler
 
 
 class Simulated():
@@ -27,22 +32,41 @@ class Simulated():
 
 
     def create_env(self, obs_pos, obs_axes_lenght, obs_vel, no_obs):
-        self.obstacle_environment = ObstacleContainer()
-        #other atribut for pos, vel... ?
+        #old
+        #self.obstacle_environment = ObstacleContainer()
+
+        #new
+        self.obstacle_environment = OptitrackContainer(use_optitrack=False)
+
         if no_obs:
             return
-        for pos, axes, vel in zip(obs_pos, obs_axes_lenght, obs_vel):
+        for i, (pos, axes, vel) in enumerate(zip(obs_pos, obs_axes_lenght, obs_vel)):
+            #old
+            # self.obstacle_environment.append(
+            #     Ellipse(
+            #         axes_length = axes,
+            #         center_position = pos,
+            #         margin_absolut=0.15,
+            #         # orientation=10 * pi / 180,
+            #         linear_velocity = vel,
+            #         tail_effect=False,
+            #         # repulsion_coeff=1.4,
+            #     )
+            # )
+
+            #new
             self.obstacle_environment.append(
-                Cuboid(
-                    axes_length = axes,
+                Ellipse(
                     center_position = pos,
-                    margin_absolut=0.15,
-                    # orientation=10 * pi / 180,
+                    axes_length = axes,
                     linear_velocity = vel,
-                    tail_effect=False,
-                    # repulsion_coeff=1.4,
-                )
+                ),
+                obstacle_id=i,
             )
+         
+        self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
+        return self.obstacle_environment
+            
         
 
     def create_DS_copy(self, attractor_position, A_matrix, max_vel):
@@ -106,7 +130,7 @@ class Simulated():
             normal = obs.get_normal_direction(x, in_obstacle_frame = False).reshape(DIM, 1)
             obs_normals_list = np.append(obs_normals_list, normal, axis=1)
 
-            d = obs.get_distance_to_surface(x, in_obstacle_frame = False)
+            d = obs.get_gamma(x, in_obstacle_frame = False) - 1
             obs_dist_list = np.append(obs_dist_list, d)
 
 
