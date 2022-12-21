@@ -123,30 +123,37 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    n = 11
-    epochs = 10
+    n = 9 #11
+    epochs = 10 #10
     d_min_tab = np.zeros((n,epochs))
-    noise_level = np.linspace(0.0,5.0,n)
+
+    #noise_level = np.linspace(0.0,5.0,n) #for velocity
+    noise_level = np.linspace(0.0,0.8,n) #for position
+
+    d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=1.0)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)
         for e in range(epochs):
             print("epoch :", e, "noise amp : ", noise)
-            d_min_tab[i,e] = run_control_robot(noise_pos=0.0, noise_vel=noise)
+            d_min_tab[i,e] = run_control_robot(noise_pos=noise, noise_vel=0.0)
             plt.close("all")
 
     mean = d_min_tab.mean(axis=1)
     std = d_min_tab.std(axis=1)
 
     fig = plt.figure()
-    plt.errorbar(noise_level, mean, yerr=std)
-    #plt.plot(noise_level, d_min_tab)
+    #plt.errorbar(noise_level, mean, yerr=std)
+    plt.fill_between(noise_level, mean+std, mean-std, alpha = 0.3)
+    plt.plot(noise_level, mean)
+    plt.axhline(y = 0.0, color = 'k', linestyle = '-')
     #plt.plot(noise_level, np.zeros_like(noise_level), "k")
-    plt.title("Effect of velocity measurement noise")
+    plt.title(f"Effect of position measurement noise over {epochs} epochs")
     plt.ylabel("Closest distance to obstacle during simulation [m]")
-    plt.xlabel("Ampliture of velocity measurement noise [m/s]")
+    plt.xlabel("Amplitude of position measurement noise [m]")
     fig.show()
     plt.show()
+    plt.savefig('pos_vel.png')
     plt.pause(100)
     pass
 

@@ -84,7 +84,7 @@ class Robot:
         #update tau_c
         self.tau_c = self.controller.compute_tau_c(x, xdot)
         t_diff = time() - t_now
-        print(f"time to compute control command: {t_diff}")
+        #print(f"time to compute control command: {t_diff}")
 
 
         ###########################
