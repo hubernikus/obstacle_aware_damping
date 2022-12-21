@@ -48,9 +48,9 @@ class PassiveObsController(Node):
         )
 
         #create obstacle env
-        obs_position = np.array([[0.5, 0.0, 0.0], [0.5, 0., 0.3]]) #these are N x 3
-        obs_axes_lenght = np.array([[0.25] *3, [0.25] *3]) #for plot need to be all equal -> sphere, its the radius
-        obs_vel = np.array([[0.0] * 3, [0.0] * 3])
+        obs_position = np.array([[0.5, 0.0, 0.25]]) #these are N x 3
+        obs_axes_lenght = np.array([[0.25] *3]) #for plot need to be all equal -> sphere, its the radius
+        obs_vel = np.array([[0.0] * 3])
         no_obs = False #to disable obstacles
         self.obstacle_env = self.sim.create_env(obs_position, obs_axes_lenght, obs_vel, no_obs)
 
