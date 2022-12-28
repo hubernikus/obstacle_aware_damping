@@ -120,10 +120,14 @@ class TrackingController(Controller):
 
             return tau_c
         
-        f_c, f_r = self.decomp_f(x)
-        beta_r = self.get_beta_r()
+        #f_c, f_r = self.decomp_f(x)
+        #beta_r = self.get_beta_r()
+        beta_r_list = self.get_beta_r_list()
 
-        tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+        #tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
+        tau_c = self.G - self.D@xdot + ((self.lambda_mat@np.diag(beta_r_list)*self.f_decomp_T).T@\
+                                         np.ones(self.DIM)).T
+
         #limit tau_c ?? physical constrains
 
         return tau_c
@@ -137,9 +141,9 @@ class TrackingController(Controller):
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
             D = self.compute_D_matrix_wrt_obs(xdot)
         elif self.type_of_D_matrix == TypeD.BOTH:
-            if self.ortho_basis_approach:
+            if self.ortho_basis_approach: #better
                 D = self.compute_D_matrix_wrt_both_ortho_basis(x, xdot)
-            else: #probably better
+            else:
                 D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
                 
         #improve stability at atractor, not recompute always D???
@@ -157,20 +161,20 @@ class TrackingController(Controller):
         x_dot_des = self.dynamic_avoider.evaluate(x)
 
         #construct the basis matrix, align to the DS direction 
-        E = get_orthogonal_basis(x_dot_des)
-        E_inv = np.linalg.inv(E)
+        self.E = get_orthogonal_basis(x_dot_des)
+        E_inv = np.linalg.inv(self.E)
 
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
-            lambda_mat = np.array([[self.lambda_DS, 0.0],
+            self.lambda_mat = np.array([[self.lambda_DS, 0.0],
                                    [0.0, self.lambda_perp]])
         else:
-            lambda_mat = np.array([[self.lambda_DS, 0.0, 0.0], 
+            self.lambda_mat = np.array([[self.lambda_DS, 0.0, 0.0], 
                                    [0.0, self.lambda_perp, 0.0],
                                    [0.0, 0.0, self.lambda_perp]])
 
         #compose the damping matrix
-        D = E@lambda_mat@E_inv
+        D = self.E@self.lambda_mat@E_inv
         return D
 
     def compute_D_matrix_wrt_obs(self, xdot):
@@ -205,15 +209,15 @@ class TrackingController(Controller):
         
         if self.DIM == 2:
             e1 = np.array([e2[1], -e2[0]])
-            E = np.array([e1, e2]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1, e2]).T
+            E_inv = np.linalg.inv(self.E)
         else :
             e1 = np.array([e2[1], -e2[0], 0.0]) # we have a degree of freedom -> 0.0
             if not any(e1): #e1 is [0,0,0]
                 e1 = np.array([-e2[2], 0.0, e2[0]])
             e3 = np.cross(e1,e2)
-            E = np.array([e1, e2, e3]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1, e2, e3]).T
+            E_inv = np.linalg.inv(self.E)
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_perp
@@ -226,14 +230,14 @@ class TrackingController(Controller):
 
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
-            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+            self.lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
-            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+            self.lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
                                    [0.0, lambda_2, 0.0],
                                    [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
-        D = E@lambda_mat@E_inv
+        D = self.E@self.lambda_mat@E_inv
         return D
 
     #not used -> doesn't work
@@ -325,11 +329,11 @@ class TrackingController(Controller):
             
         #construct the basis matrix
         if self.DIM == 2:
-            E = np.array([e1_DS, e2_both]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1_DS, e2_both]).T
+            E_inv = np.linalg.inv(self.E)
         else :
-            E = np.array([e1_DS, e2_both, e3]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1_DS, e2_both, e3]).T
+            E_inv = np.linalg.inv(self.E)
 
         #compute the damping coeficients along selective directions
         lambda_1 = self.lambda_DS 
@@ -343,14 +347,14 @@ class TrackingController(Controller):
 
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
-            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+            self.lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
-            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+            self.lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
                                    [0.0, lambda_2, 0.0],
                                    [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
-        D = E@lambda_mat@E_inv
+        D = self.E@self.lambda_mat@E_inv
         return D
 
     def compute_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
@@ -423,11 +427,11 @@ class TrackingController(Controller):
 
         #construct the basis matrix
         if self.DIM == 2:
-            E = np.array([e1_DS, e2_both]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1_DS, e2_both]).T
+            E_inv = np.linalg.inv(self.E)
         else :
-            E = np.array([e1_DS, e2_both, e3]).T
-            E_inv = np.linalg.inv(E)
+            self.E = np.array([e1_DS, e2_both, e3]).T
+            E_inv = np.linalg.inv(self.E)
 
         #HERE TEST THINGS
         #TEST 1
@@ -447,14 +451,14 @@ class TrackingController(Controller):
         
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
-            lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
+            self.lambda_mat = np.array([[lambda_1, 0.0], [0.0, lambda_2]])
         else:
-            lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
+            self.lambda_mat = np.array([[lambda_1, 0.0, 0.0], 
                                    [0.0, lambda_2, 0.0],
                                    [0.0, 0.0, lambda_3]])
         
         #compose the damping matrix
-        D = E@lambda_mat@E_inv
+        D = self.E@self.lambda_mat@E_inv
         return D
 
     #ENERGY TANK RELATED
@@ -466,14 +470,21 @@ class TrackingController(Controller):
             #avoid useless computation
             return
 
-        _, f_r = self.decomp_f(x)
-        self.z = xdot.T@f_r
+        #_, f_r = self.decomp_f(x)
+        #self.z = xdot.T@f_r
+
+        #get desired velocity
+        f = self.dynamic_avoider.evaluate(x)
+        self.f_decomp_T = np.diag(self.E.T@f)@self.E.T #matrix with row = f1...fn : projection of f on each e1, ..., en
+        self.z_list = self.f_decomp_T@xdot #need check
         
         alpha = self.get_alpha()
-        beta_s = self.get_beta_s()
+        #beta_s = self.get_beta_s()
+        beta_s_list = self.get_beta_s_list()
 
         #using euler 1st order
-        sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
+        #sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
+        sdot = alpha*xdot.T@self.D@xdot - np.dot(beta_s_list, self.lambda_mat@self.z_list)
         self.s += dt*sdot
     
     def decomp_f(self, x):
@@ -497,6 +508,14 @@ class TrackingController(Controller):
                 - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
         return ret
 
+    def get_beta_s_list(self):
+        #corec from paper, 2nd H
+        ret = np.zeros(self.DIM)
+        for i in range(self.DIM):
+            ret[i] = 1 - smooth_step(-mn.DELTA_Z, 0, self.z_list[i])*smooth_step_neg(0, mn.DELTA_S, self.s)\
+                       - smooth_step_neg(0, mn.DELTA_Z, self.z_list[i])*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
+        return ret
+
     def get_beta_r(self):
         # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
         #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
@@ -507,6 +526,20 @@ class TrackingController(Controller):
               * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
                      smooth_step_neg(0, mn.DELTA_Z, self.z)* \
                      smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+        return ret
+
+    def get_beta_r_list(self):
+        # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
+        #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
+        #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
+       
+        #modif at second H -> was amistake
+        ret = np.zeros(self.DIM)
+        for i in range(self.DIM):
+            ret[i] = (1 - smooth_step(-mn.DELTA_Z, 0, self.z_list[i])*smooth_step_neg(0, mn.DELTA_S, self.s)) \
+                * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z_list[i])* \
+                        smooth_step_neg(0, mn.DELTA_Z, self.z_list[i])* \
+                        smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
         return ret
 
 ### HELPER FUNTION ###

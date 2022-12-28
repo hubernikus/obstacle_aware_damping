@@ -116,7 +116,7 @@ def run_control_robot():
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
             ortho_basis_approach = True,
-            with_E_storage = False
+            with_E_storage = True
         ),
     )
 
@@ -246,14 +246,16 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot_3D()
+    run_control_robot()
     #run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better
-    #fig, ax = plt.subplots()
-    # fig = plt.figure()
-    # x = np.linspace(0, len(s_list), len(s_list))
-    # plt.plot(x, s_list)
-    # fig.show()
-    # plt.show()
-    # pass #add breakpoint here if want to plot s
+    plt.close("all")
+    plt.ion()
+    fig = plt.figure()
+    x = np.linspace(0, len(s_list), len(s_list))
+    plt.plot(x, s_list)
+    #fig.show()
+    plt.show(block = True)
+    #plt.pause(10)
+    pass #add breakpoint here if want to plot s

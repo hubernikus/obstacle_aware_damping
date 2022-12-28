@@ -13,7 +13,6 @@ class Robot:
         self,
         DIM = 2,
         M = None,
-        #C = 10*np.eye(self.DIM), # with damping 
         C = None,
         G = None,
 
@@ -37,6 +36,7 @@ class Robot:
         self.C = C
         if C is None:
             self.C = np.zeros((self.DIM,self.DIM))
+            #self.C = 10*np.eye(self.DIM), # with damping 
 
         self.G = G
         if G is None:
@@ -71,15 +71,15 @@ class Robot:
         ## MEASUREMENTS, TORQUE COMMAND COMPUTATION ##
         ##############################################
 
-        #udpate the energy tank - not used
-        #self.controller.update_energy_tank(self.x, self.xdot, self.dt)
-
         #measurement of postition and velocity - with noise level
         x, xdot = self.measure_pos_vel()
 
         t_now = time()
         #update of D matrix to follow DS or passive to obs
         self.controller.update_D_matrix(x, xdot)
+
+        #udpate the energy tank - not used
+        self.controller.update_energy_tank(self.x, self.xdot, self.dt)
 
         #update tau_c
         self.tau_c = self.controller.compute_tau_c(x, xdot)
