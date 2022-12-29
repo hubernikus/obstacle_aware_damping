@@ -24,6 +24,7 @@ class Controller(ABC):
 
 class RegulationController(Controller):
     """
+    not used anymore (but may work)
     in the form tau_c = G - D*x_dot - K*x , does regulation to 0
     """
     def __init__(

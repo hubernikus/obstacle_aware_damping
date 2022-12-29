@@ -112,7 +112,7 @@ class Robot:
 
     def rk4_step(self):
         """
-        perform one time step of the RK4 algorithme
+        perform one time step of the robot with RK4 algorithm
         """
         t = 0 #time not used
 
@@ -133,6 +133,9 @@ class Robot:
         self.xdot += (k1 + 2*k2 + 2*k3 + k4)/6
 
     def euler_forward_step(self):
+        """
+        perform one time step of the robot with euler-forward algorithm
+        """
         t = 0 #not used
 
         m1 = self.dt*self.xdot
@@ -143,6 +146,9 @@ class Robot:
         self.xdot += k1
 
     def measure_pos_vel(self):
+        """
+        adds noise to the simulation measurements (either on position, velocity or both)
+        """
         if self.noisy:
             x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,self.DIM)
             xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,self.DIM)

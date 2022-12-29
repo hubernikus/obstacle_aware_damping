@@ -21,6 +21,10 @@ import librairies.magic_numbers_and_enums as mn
 from librairies.robot_animation import s_list
 
 def run_control_robot():
+    """
+    Setup all the environment + robot + controller in 2D
+    then run it
+    """
     DIM = 2
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
@@ -142,7 +146,8 @@ def run_control_robot():
 
 def run_control_robot_3D():
     """
-    same but in 3d
+    Setup all the environment + robot + controller in 3D
+    then run it
     """
     DIM = 3
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
@@ -155,7 +160,6 @@ def run_control_robot_3D():
     attractor_position = np.array([2.0, 0.0, 0.0])
 
     #setup of obstacles
-    #3D ???
     obstacle_environment = ObstacleContainer()
     obstacle_environment.append(
         Cuboid(
@@ -211,13 +215,13 @@ def run_control_robot_3D():
                 initial_dynamics=initial_dynamics,
                 obstacle_environment=obstacle_environment,
             ),
-            DIM = 3,
+            DIM = DIM,
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
             ortho_basis_approach = True,
-            with_E_storage = False
+            with_E_storage = True
         ),
     )
 
@@ -246,7 +250,7 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot()
+    run_control_robot_3D()
     #run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better

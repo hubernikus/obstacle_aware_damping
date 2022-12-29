@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import animation
-from matplotlib.offsetbox import (OffsetImage, AnnotationBbox) #remoove ? 
+from matplotlib import animation 
 import datetime
 import os
 import matplotlib.image as mpimg
@@ -11,8 +10,7 @@ from scipy import ndimage
 from vartools.animator import Animator
 
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
-#from dynamic_obstacle_avoidance.visualization import plot_obstacles
-#overwritten by me
+#from dynamic_obstacle_avoidance.visualization import plot_obstacles #overwritten in draw_obs_overwrite
 
 #my librairies
 from librairies.robot import Robot
@@ -23,6 +21,9 @@ from librairies.draw_obs_overwrite import plot_obstacles
 s_list = []
 
 class CotrolledRobotAnimation(Animator):
+    """
+    Animator class that runs the main loop, simulates and vizualizes everything
+    """
 
     def setup(
         self,
@@ -63,8 +64,6 @@ class CotrolledRobotAnimation(Animator):
         self.draw_qolo = draw_qolo
         self.rotate_qolo = rotate_qolo
 
-        #qolo = plt.imread("./Qolo_T_CB_top_bumper.png")
-        #self.imagebox = OffsetImage(qolo, zoom = 0.05)
         self.qolo = mpimg.imread("./Qolo_T_CB_top_bumper_low_qual.png")
         self.qolo_length_x = mn.QOLO_LENGHT_X
         self.qolo_length_y = (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x
@@ -74,9 +73,15 @@ class CotrolledRobotAnimation(Animator):
         else:
             self.fig, self.ax = plt.subplots(1,2,figsize=(14, 7))
 
-        self.d_min = 1000.0 #variable to record closest pos to obs
+        self.d_min = 1000.0 #variable to record closest pos to obs, big init value
 
     def update_step(self, ii: int) -> None:
+        """
+        what has to be done during one iteration, is divided in 2 main phases :
+        1. calculation : everethings that is related to the robot simulation,
+                         recieves input disturbances
+        2. clearing + drawing : vizualizes everything
+        """
         print(f"iter : {ii + 1}") #because starting at 0
         
         ###################
@@ -86,10 +91,10 @@ class CotrolledRobotAnimation(Animator):
         # Update obstacles
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
-        #add artificial disturbances
+        #add artificial disturbances : function to call to trigger automatic disturbances
         #self.artificial_disturbances(ii)
 
-        #just for plotting storage s -> delete when no bug
+        #just for plotting the energy storage level s 
         s_list.append(self.robot.controller.s)
 
         #record position of the new disturbance added with mouse drag
@@ -100,7 +105,7 @@ class CotrolledRobotAnimation(Animator):
             )
             self.new_disturbance = False
         
-        #get the normal + distance of the obstacles for the D_matrix of the controller
+        #get the normals + distances of the obstacles for the D_matrix of the controller
         self.robot.controller.obs_normals_list = np.empty((self.DIM, 0))
         self.robot.controller.obs_dist_list =np.empty(0)
 
@@ -115,22 +120,18 @@ class CotrolledRobotAnimation(Animator):
                 normal,
                 axis=1,
             )
-            # d = obs.get_distance_to_surface(
-            #     self.position_list[:, ii],
-            #     in_obstacle_frame = False,
-            # )
-            # print(d)
 
-            #get_gamma works for all? obstacles
+            #get_gamma() works for more obstacles than get_distance_to_surface()
             d = obs.get_gamma(
                 self.position_list[:, ii],
                 in_obstacle_frame = False,                
             ) - 1
-            #print(d, "\n")
             self.robot.controller.obs_dist_list = np.append(
                 self.robot.controller.obs_dist_list,
                 d,
             )
+
+            #to keep track of how close we we're during the whole simulation
             if d < self.d_min:
                 self.d_min = d
 
@@ -171,11 +172,9 @@ class CotrolledRobotAnimation(Animator):
         
 
     def plot_anim_2D(self, ii):
-        #just for video recording syncronisation purposes
-        if ii == 5:
-            #self.ax.plot(0.,0.,"o", color="r", markersize=20,)
-            pass
-
+        """
+        Plot everything in 2D
+        """
         #ax settings
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
@@ -190,7 +189,7 @@ class CotrolledRobotAnimation(Animator):
             labelleft=False,
         )
 
-        #ideal trajectory - in light blue
+        #ideal trajectory - in blue
         if self.draw_ideal_traj:
             self.ax.plot(
                 self.position_list_ideal[0, :ii], 
@@ -226,25 +225,25 @@ class CotrolledRobotAnimation(Animator):
             showLabel=False,
         )
 
-        #disturbance drawing, bizzare lines, recheck, magic numbers ??
+        #disturbance drawing
+        draw_scaling = 500.0
         for  i, (disturbance, disturbance_pos) in enumerate(zip(self.disturbance_list.transpose(),
                                                  self.disturbance_pos_list.transpose())):
             #small trick to only label one disturance
             if i == 0:
                 self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
-                            disturbance[0]/500.0, disturbance[1]/500.0,
+                            disturbance[0]/draw_scaling, disturbance[1]/draw_scaling,
                             width=0.02,
                             color= "r",
                             label= "Disturbances",)
             else : 
                 self.ax.arrow(disturbance_pos[0], disturbance_pos[1],
-                            disturbance[0]/500.0, disturbance[1]/500.0,
+                            disturbance[0]/draw_scaling, disturbance[1]/draw_scaling,
                             width=0.02,
                             color= "r",)
 
-        #actual position is i, futur position is i + 1 (will be plot next cycle)
         if self.draw_qolo:
-            #carefull, rotating slows a lot the animation
+            #carefull, rotating slows a lot the animation (-> reduce image resolution)
             if self.rotate_qolo:
                 angle_rot = np.arctan2(self.velocity_list[1, ii], self.velocity_list[0, ii])
                 qolo_rot = ndimage.rotate(
@@ -285,11 +284,9 @@ class CotrolledRobotAnimation(Animator):
         plt.legend()
 
     def plot_anim_3D(self, ii):
-        #just for video recording syncronisation purposes
-        if ii == 5:
-            #self.ax.plot(0.,0.,"o", color="r", markersize=20,)
-            pass
-        
+        """
+        Plot everything in 3D, the screen it split, disturbance drawing works on both views
+        """        
         plt.title("3D viewer (obstacle penetration only if both views penetrate")
         for i, ax in enumerate(self.ax):
             if i == 0: #plot xy plane
@@ -352,25 +349,25 @@ class CotrolledRobotAnimation(Animator):
                 ordinate = ordinate,
             )
 
-            #disturbance drawing, bizzare lines, recheck, magic numbers ??
+            #disturbance drawing
+            draw_scaling = 500.0
             for  i, (disturbance, disturbance_pos) in enumerate(zip(self.disturbance_list.transpose(),
                                                     self.disturbance_pos_list.transpose())):
                 #small trick to only label one disturance
                 if i == 0:
                     ax.arrow(disturbance_pos[absciss], disturbance_pos[ordinate],
-                                disturbance[absciss]/500.0, disturbance[ordinate]/500.0,
+                                disturbance[absciss]/draw_scaling, disturbance[ordinate]/draw_scaling,
                                 width=0.02,
                                 color= "r",
                                 label= "Disturbances",)
                 else : 
                     ax.arrow(disturbance_pos[absciss], disturbance_pos[ordinate],
-                                disturbance[absciss]/500.0, disturbance[ordinate]/500.0,
+                                disturbance[absciss]/draw_scaling, disturbance[ordinate]/draw_scaling,
                                 width=0.02,
                                 color= "r",)
 
-            #actual position is i, futur position is i + 1 (will be plot next cycle)
             if self.draw_qolo:
-                #carefull, rotating slows a lot the animation
+                #carefull, rotating slows a lot the animation (-> lower image resolution)
                 if self.rotate_qolo:
                     angle_rot = np.arctan2(self.velocity_list[ordinate, ii],
                                            self.velocity_list[absciss, ii]
@@ -453,6 +450,7 @@ class CotrolledRobotAnimation(Animator):
             self.step_back()
 
     #overwrite run() to change "button_press_event"
+    # only lines with #modified/added were changed
     def run(self, save_animation: bool = False) -> None:
             """Runs the animation"""
             if self.fig is None:
@@ -525,10 +523,16 @@ class CotrolledRobotAnimation(Animator):
     ### DISTURBANCES HANDLING ###
 
     def record_click_coord(self, event):
+        """
+        record if a click is perfom in ax (to draw a disturbance)
+        """
         self.x_press_disturbance, self.y_press_disturbance = event.xdata, event.ydata
         #print(event.xdata, event.ydata)
 
     def add_click_disturbance(self, event):
+        """
+        record if a click is released in ax (to draw a disturbance)
+        """
         if event.xdata is None:
             return
         
@@ -554,7 +558,6 @@ class CotrolledRobotAnimation(Animator):
         
         if np.linalg.norm(disturbance) < 10.0:
             return
-        #print("disturbance : ", disturbance)
         self.robot.tau_e = disturbance
         self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
         self.new_disturbance = True
