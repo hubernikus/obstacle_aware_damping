@@ -186,7 +186,7 @@ class Simulated():
             raise ("What did trigger this, it shouldn't")
 
         # construct the basis matrix
-        E = np.array([e1_DS, e2_both, e3]).T
+        E = np.array([e1_both, e2_both, e3]).T
         E_inv = np.linalg.inv(E)
 
         # compute the damping coeficients along selective directions
