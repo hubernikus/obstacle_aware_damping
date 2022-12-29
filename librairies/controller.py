@@ -122,17 +122,19 @@ class TrackingController(Controller):
         
         #f_c, f_r = self.decomp_f(x)
         #beta_r = self.get_beta_r()
+
         beta_r_list = self.get_beta_r_list()
+        #print(beta_r_list)
 
         #tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
-        tau_c = self.G - self.D@xdot + ((self.lambda_mat@np.diag(beta_r_list)*self.f_decomp_T).T@\
-                                         np.ones(self.DIM)).T
-
-        #limit tau_c ?? physical constrains
+        tau_c = self.G - self.D@xdot + np.sum(self.f_decomp*beta_r_list*np.diag(self.lambda_mat), axis = 1)
 
         return tau_c
 
     def update_D_matrix(self, x, xdot):
+        """
+        General function that chose the way of updating the damping matix
+        """
         # if np.linalg.norm(self.dynamic_avoider.evaluate(x)) < mn.EPS_CONVERGENCE:
         #     return
 
@@ -157,6 +159,10 @@ class TrackingController(Controller):
 
     
     def compute_D_matrix_wrt_DS(self, x):
+        """
+        Computes the damping matrix, without considering obstacles.
+        This implements the traditional passive control
+        """
         #get desired velocity 
         x_dot_des = self.dynamic_avoider.evaluate(x)
 
@@ -178,6 +184,10 @@ class TrackingController(Controller):
         return D
 
     def compute_D_matrix_wrt_obs(self, xdot):
+        """
+        Compute the damping matri to be stiff against obstacle, 
+        doesn't implement tracking stiffness
+        """
         #if there is no obstacles, we just keep D as it is
         if not np.size(self.obs_dist_list):
             return self.D
@@ -240,8 +250,10 @@ class TrackingController(Controller):
         D = self.E@self.lambda_mat@E_inv
         return D
 
-    #not used -> doesn't work
     def compute_D_matrix_wrt_both_mat_mul(self, x, xdot):
+        """
+        do not use, not working
+        """
         D_obs = self.compute_D_matrix_wrt_obs(xdot)
         D_ds = self.compute_D_matrix_wrt_DS(x)
 
@@ -251,6 +263,18 @@ class TrackingController(Controller):
         return D_tot
 
     def compute_D_matrix_wrt_both_ortho_basis(self, x, xdot):
+        """
+        Compute the damping matrix with the new passive control. Will be stiff against 
+        obstacles, while also beeing stiff along the direction of motion and
+        compliant in the perpendicular directions.
+        This function implements the first method, with D beeing a positive semi-definite matrix
+        Works with many obstacles, and in 2/3 dimensions
+            param : 
+                x (np.array) : actual position
+                xdot(np.array) : actual velocity
+            return : 
+                D (np.array) : the damping matrix
+        """
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
         if not np.size(self.obs_dist_list):
             return self.compute_D_matrix_wrt_DS(x)
@@ -329,10 +353,10 @@ class TrackingController(Controller):
             
         #construct the basis matrix
         if self.DIM == 2:
-            self.E = np.array([e1_DS, e2_both]).T
+            self.E = np.array([e1_both, e2_both]).T
             E_inv = np.linalg.inv(self.E)
         else :
-            self.E = np.array([e1_DS, e2_both, e3]).T
+            self.E = np.array([e1_both, e2_both, e3]).T
             E_inv = np.linalg.inv(self.E)
 
         #compute the damping coeficients along selective directions
@@ -358,6 +382,18 @@ class TrackingController(Controller):
         return D
 
     def compute_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
+        """
+        Compute the damping matrix with the new passive control. Will be stiff against 
+        obstacles, while also beeing stiff along the direction of motion and
+        compliant in the perpendicular directions.
+        This function implements the second method, with e1 being always aligned with f = xdot_des
+        Works with many obstacles, and in 2/3 dimensions
+            param : 
+                x (np.array) : actual position
+                xdot(np.array) : actual velocity
+            return : 
+                D (np.array) : the damping matrix
+        """
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
         if not np.size(self.obs_dist_list):
             return self.compute_D_matrix_wrt_DS(x)
@@ -462,9 +498,16 @@ class TrackingController(Controller):
         return D
 
     #ENERGY TANK RELATED
-    #all x, xdot must be from actual step and not future (i.e. must not be updated yet -> use temp var...)
-    # D must not be updated yet
+    #all x, xdot must be from actual step and not future (i.e. must not be updated yet)
+    # D must be updated yet
     def update_energy_tank(self, x, xdot, dt):
+        """
+        Perform one time step (euler) to update the energy tank. Also updates the parameters 
+        related to the energy storage (alpha, beta, ...)
+            param : 
+                x (np.array) : actual position
+                xdot(np.array) : actual velocity
+        """
 
         if not self.with_E_storage:
             #avoid useless computation
@@ -475,8 +518,8 @@ class TrackingController(Controller):
 
         #get desired velocity
         f = self.dynamic_avoider.evaluate(x)
-        self.f_decomp_T = np.diag(self.E.T@f)@self.E.T #matrix with row = f1...fn : projection of f on each e1, ..., en
-        self.z_list = self.f_decomp_T@xdot #need check
+        self.f_decomp = (np.diag(self.E.T@f)@self.E.T).T #matrix with column = f1...fn : projection of f on each e1, ..., en
+        self.z_list = self.f_decomp.T@xdot #need check
         
         alpha = self.get_alpha()
         #beta_s = self.get_beta_s()
@@ -484,22 +527,34 @@ class TrackingController(Controller):
 
         #using euler 1st order
         #sdot = alpha*xdot.T@self.D@xdot - beta_s*self.lambda_DS*self.z
-        sdot = alpha*xdot.T@self.D@xdot - np.dot(beta_s_list, self.lambda_mat@self.z_list)
+        sdot = alpha*xdot.T@self.D@xdot - np.sum(beta_s_list*np.diag(self.lambda_mat)*self.z_list)#elem-wise
         self.s += dt*sdot
     
     def decomp_f(self, x):
+        """
+        Decompose f into a conservative + non-conservative part. Not used.
+        """
         f_c = self.dynamic_avoider.initial_dynamics.evaluate(x) #unmodulated dynamic : conservative (if DS is lin.)
         f_r = self.dynamic_avoider.evaluate(x) - f_c
         return f_c, f_r
 
     def get_alpha(self):
-        #return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s) #used in paper
-        #return smooth_step_neg(0, mn.DELTA_S, self.s)
+        """
+        computes alpha
+            return : 
+                alpha (int)
+        """
+        #return smooth_step_neg(mn.S_MAX/2 - mn.DELTA_S, mn.S_MAX/2 + mn.DELTA_S, self.s)
+        return smooth_step_neg(mn.S_MAX-mn.DELTA_S, mn.S_MAX, self.s) #used in paper
 
-        #centered at S_MAX/2
-        return smooth_step_neg(mn.S_MAX/2 - mn.DELTA_S, mn.S_MAX/2 + mn.DELTA_S, self.s)
+
 
     def get_beta_s(self):
+        """
+        computes beta_s, not used
+            return : 
+                beta_s (int)
+        """
         # ret = 1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s) \
         #         - smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)
         
@@ -509,6 +564,11 @@ class TrackingController(Controller):
         return ret
 
     def get_beta_s_list(self):
+        """
+        computes all the beta_s, one for each dimension
+            return : 
+                beta_s_list (np.array)
+        """
         #corec from paper, 2nd H
         ret = np.zeros(self.DIM)
         for i in range(self.DIM):
@@ -517,6 +577,11 @@ class TrackingController(Controller):
         return ret
 
     def get_beta_r(self):
+        """
+        computes beta_R, not used
+            return : 
+                beta_s (int)
+        """
         # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
         #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
         #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
@@ -529,6 +594,11 @@ class TrackingController(Controller):
         return ret
 
     def get_beta_r_list(self):
+        """
+        computes all the beta_R, one for each dimension
+            return : 
+                beta_R_list (np.array)
+        """
         # ret = (1 - smooth_step(-mn.DELTA_Z, 0, self.z)*smooth_step_neg(mn.S_MAX, mn.S_MAX + mn.DELTA_S, self.s)) \
         #       * (1 - (smooth_step(-mn.DELTA_Z, 0, self.z)* \
         #              smooth_step_neg(0, mn.DELTA_Z, self.z)*smooth_step(mn.S_MAX - mn.DELTA_S, mn.S_MAX, self.s)))
@@ -546,6 +616,15 @@ class TrackingController(Controller):
 
 #helper smooth step functions
 def smooth_step(a,b,x):
+    """
+    Implements a smooth step function
+        param :
+            a : low-limit
+            b : high-limit 
+            x : value where we want to evaluate the function
+        return :
+            H_a_b(x) (int) : the value of the smooth step function
+    """
     if x < a: 
         return 0
     if x > b:
@@ -554,4 +633,13 @@ def smooth_step(a,b,x):
         return 6*((x-a)/(b-a))**5 - 15*((x-a)/(b-a))**4 + 10*((x-a)/(b-a))**3
 
 def smooth_step_neg(a,b,x):
+    """
+    Implements a negative smooth step function
+        param :
+            a : high-limit
+            b : low-limit 
+            x : value where we want to evaluate the function
+        return :
+            H_a_b(x) (int) : the value of the negative smooth step function
+    """
     return 1 - smooth_step(a,b,x)

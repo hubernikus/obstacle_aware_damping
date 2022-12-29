@@ -255,7 +255,9 @@ if (__name__) == "__main__":
     fig = plt.figure()
     x = np.linspace(0, len(s_list), len(s_list))
     plt.plot(x, s_list)
-    #fig.show()
+    plt. axhline(0, color = "r")
+    plt. axhline(mn.S_MAX, color = "r")
+    plt.xlabel("Iteration")
+    plt.ylabel("Energy tank level")
+    plt.title("Energy tank level at each iteration")
     plt.show(block = True)
-    #plt.pause(10)
-    pass #add breakpoint here if want to plot s
