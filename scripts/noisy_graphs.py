@@ -130,7 +130,7 @@ if (__name__) == "__main__":
     #noise_level = np.linspace(0.0,5.0,n) #for velocity
     noise_level = np.linspace(0.0,0.8,n) #for position
 
-    d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=1.0)
+    d_min_tab[0,0] = run_control_robot(noise_pos=0.7, noise_vel=0.0)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)

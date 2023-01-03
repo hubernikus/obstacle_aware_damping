@@ -37,6 +37,7 @@ def run_control_robot():
 
     #setup of obstacles
     obstacle_environment = ObstacleContainer()
+    #SETUP A
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.6, 0.6],
@@ -73,6 +74,20 @@ def run_control_robot():
             # repulsion_coeff=1.4,
         )
     )
+
+    #SETUP B
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[1.6, 0.6],
+    #         center_position=np.array([0.0, 0.0]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
 
     #setup of dynamical system
     initial_dynamics = LinearSystem(
@@ -250,7 +265,7 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot_3D()
+    run_control_robot()
     #run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better

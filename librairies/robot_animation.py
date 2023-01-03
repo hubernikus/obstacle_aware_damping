@@ -96,7 +96,7 @@ class CotrolledRobotAnimation(Animator):
 
         #just for plotting the energy storage level s 
         s_list.append(self.robot.controller.s)
-
+ 
         #record position of the new disturbance added with mouse drag
         if self.new_disturbance:
             self.disturbance_pos_list = np.append(
@@ -563,26 +563,26 @@ class CotrolledRobotAnimation(Animator):
         self.new_disturbance = True
 
     def artificial_disturbances(self, ii):
-        if ii == 25:
-            disturbance = np.array([-3.,0.])*self.disturbance_scaling
-            self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
-            self.new_disturbance = True
-        if ii == 35:
-            disturbance = np.array([-3.,0.])*self.disturbance_scaling
-            self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
-            self.new_disturbance = True
+        # if ii == 25:
+        #     disturbance = np.array([-3.,0.])*self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
+        #     self.new_disturbance = True
+        # if ii == 35:
+        #     disturbance = np.array([-3.,0.])*self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
+        #     self.new_disturbance = True
         if ii == 90:
             disturbance = np.array([2.,-4.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
-        if ii == 100:
-            disturbance = np.array([2.,-4.])*self.disturbance_scaling
-            self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
-            self.new_disturbance = True
+        # if ii == 100:
+        #     disturbance = np.array([2.,-4.])*self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
+        #     self.new_disturbance = True
         # if ii == 140:
         #     disturbance = np.array([2.,1])*self.disturbance_scaling
         #     self.robot.tau_e = disturbance
