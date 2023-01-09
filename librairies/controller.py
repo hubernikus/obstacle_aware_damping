@@ -9,6 +9,7 @@ from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
 #my librairies
 from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
+from librairies.magic_numbers_and_enums import Approach
 import librairies.magic_numbers_and_enums as mn
 
 
@@ -68,7 +69,7 @@ class TrackingController(Controller):
         lambda_perp = 20.0, #compliance perp to DS or obs
         lambda_obs = mn.LAMBDA_MAX,
         type_of_D_matrix = TypeD.BOTH,
-        ortho_basis_approach = False,
+        approach = Approach.ORTHO_BASIS,
         with_E_storage = False,
         
     ):
@@ -98,7 +99,7 @@ class TrackingController(Controller):
         self.obs_dist_list = np.empty(0)
 
         self.type_of_D_matrix = type_of_D_matrix
-        self.ortho_basis_approach = ortho_basis_approach
+        self.approach = approach
 
         #energy tank
         self.with_E_storage = with_E_storage
@@ -111,11 +112,11 @@ class TrackingController(Controller):
         now also with energy storage
         """
     
-        if not self.with_E_storage:
+        if not (self.with_E_storage and self.approach == Approach.ORTHO_BASIS):
             x_dot_des = self.dynamic_avoider.evaluate(x)
             tau_c = self.G - self.D@(xdot - x_dot_des)
 
-            #physical constrains, value ? -> laisser ???
+            #physical constrains, value ?
             tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
             tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
 
@@ -144,10 +145,13 @@ class TrackingController(Controller):
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
             D = self.compute_D_matrix_wrt_obs(xdot)
         elif self.type_of_D_matrix == TypeD.BOTH:
-            if self.ortho_basis_approach: #better
+            #chose the way to control
+            if self.approach == Approach.ORTHO_BASIS: #better
                 D = self.compute_D_matrix_wrt_both_ortho_basis(x, xdot)
-            else:
+            elif self.approach == Approach.NON_ORTHO_BASIS:
                 D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
+            elif self.approach == Approach.WEIGHT_DS_OBS_MAT:
+                D = self.compute_D_matrix_wrt_both_mat_add(x, xdot)
                 
         #improve stability at atractor, not recompute always D???
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
@@ -194,6 +198,7 @@ class TrackingController(Controller):
             return self.D
         
         weight = 0
+        div = 0
         e2 = np.zeros(self.DIM)
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
@@ -206,13 +211,17 @@ class TrackingController(Controller):
             if weight_i > weight:
                 weight = weight_i
 
-            #e2 is a weighted linear combianation of all the normals
-            e2 += normal/(dist + 1)
+            #e2_obs is a weighted linear combianation of all the normals
+            #e2_obs += normal/(dist + 1)
+            e2 += normal/(dist + mn.EPSILON)
+            div += 1/(dist + mn.EPSILON)
+
+        e2 = e2/div
 
         e2_norm = np.linalg.norm(e2)
         if not e2_norm:
             #resultant normal not defined
-            #what to do ?? -> return prev mat
+            #-> return prev mat
             return self.D
         e2 = e2/e2_norm
 
@@ -236,8 +245,12 @@ class TrackingController(Controller):
         lambda_3 = self.lambda_perp
 
         #if we go away from obs, we relax the stiffness
-        if np.dot(xdot, e2) > 0:
-            lambda_2 = self.lambda_perp
+        # if np.dot(xdot, e2) > 0:
+        #     lambda_2 = self.lambda_perp
+        DELTA_RELAX = 0.01 #mn.EPSILON
+        res = np.dot(xdot, e2)
+        lambda_2 = smooth_step(0, DELTA_RELAX, res)*self.lambda_perp +\
+                   smooth_step_neg(0, DELTA_RELAX, res)*lambda_2
 
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
@@ -251,20 +264,9 @@ class TrackingController(Controller):
         D = self.E@self.lambda_mat@E_inv
         return D
 
-    def compute_D_matrix_wrt_both_mat_mul(self, x, xdot):
-        """
-        do not use, not working
-        """
-        D_obs = self.compute_D_matrix_wrt_obs(xdot)
-        D_ds = self.compute_D_matrix_wrt_DS(x)
-
-        D_tot = D_ds@D_obs
-        #D_tot[D_tot > 200.] = 200.
-
-        return D_tot
-
     def compute_D_matrix_wrt_both_ortho_basis(self, x, xdot):
         """
+        Method 1 :
         Compute the damping matrix with the new passive control. Will be stiff against 
         obstacles, while also beeing stiff along the direction of motion and
         compliant in the perpendicular directions.
@@ -294,6 +296,7 @@ class TrackingController(Controller):
         #compute vector relative to obstacles
         weight = 0
         e2_obs = np.zeros(self.DIM)
+        div = 0
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -307,14 +310,20 @@ class TrackingController(Controller):
                 weight = weight_i
 
             #e2_obs is a weighted linear combianation of all the normals
-            e2_obs += normal/(dist + 1)
+            #e2_obs += normal/(dist + 1)
+            e2_obs += normal/(dist + mn.EPSILON)
+            div += 1/(dist + mn.EPSILON)
+
+        e2_obs = e2_obs/div
 
         e2_obs_norm = np.linalg.norm(e2_obs)
-        if not e2_obs_norm:
-            #resultant normal not defined
-            #what to do ?? -> return prev mat
-            return self.D
-        e2_obs = e2_obs/e2_obs_norm
+        #if the normal gets too small, we reduce w->0 to just take the D_ds matrix
+        delta_w_cont = 0.01
+        weight = weight*smooth_step(0, delta_w_cont, e2_obs_norm)
+
+        if e2_obs_norm:
+            #resultant normal is defined
+            e2_obs = e2_obs/e2_obs_norm
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
         if self.DIM == 2:
@@ -328,7 +337,8 @@ class TrackingController(Controller):
             norm_e3 = np.linalg.norm(e3)
             if not norm_e3: #limit case if e1_DS//e2_obs -> DS aligned w/ normal
                 warnings.warn("Limit case")
-                return self.D #what to do ??
+                #return self.D #what to do ??
+                #its handle later as D->I
             else : 
                 e3 = e3/norm_e3
             e2_DS = np.cross(e3, e1_DS)
@@ -365,10 +375,22 @@ class TrackingController(Controller):
         #lambda_1 = (1-weight)*self.lambda_DS #good ??
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
         lambda_3 = self.lambda_perp
+        
+        #this is done such that at place where E is discutinous, D goes to identity, wich is still continouus
+        y =  np.abs(np.dot(e1_DS, e2_obs))
+        delta_E_cont = 0.01 #mn.EPSILON
+        lambda_2 = lambda_1*smooth_step(1-delta_E_cont, 1, y) +\
+                   lambda_2*smooth_step_neg(1-delta_E_cont, 1, y)
+        lambda_3 = lambda_1*smooth_step(1-delta_E_cont, 1, y) +\
+                   lambda_3*smooth_step_neg(1-delta_E_cont, 1, y)
 
         #if we go away from obs, we relax the stiffness
-        if np.dot(xdot, e2_obs) > 0:
-            lambda_2 = self.lambda_perp
+        # if np.dot(xdot, e2_obs) > 0:
+        #     lambda_2 = self.lambda_perp
+        DELTA_RELAX = 0.01 #mn.EPSILON
+        res = np.dot(xdot, e2_obs)
+        lambda_2 = smooth_step(0, DELTA_RELAX, res)*self.lambda_perp +\
+                   smooth_step_neg(0, DELTA_RELAX, res)*lambda_2
 
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
@@ -384,6 +406,7 @@ class TrackingController(Controller):
 
     def compute_D_matrix_wrt_both_not_orthogonal(self, x, xdot):
         """
+        Method 2 :
         Compute the damping matrix with the new passive control. Will be stiff against 
         obstacles, while also beeing stiff along the direction of motion and
         compliant in the perpendicular directions.
@@ -413,6 +436,7 @@ class TrackingController(Controller):
         #compute vector relative to obstacles
         weight = 0
         e2_obs = np.zeros(self.DIM)
+        div = 0
         #get the normals and compute the weight of the obstacles
         for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
             #if dist <0 we're IN the obs
@@ -426,14 +450,22 @@ class TrackingController(Controller):
                 weight = weight_i
 
             #e2_obs is a weighted linear combianation of all the normals
-            e2_obs += normal/(dist + 1)
+            #e2_obs += normal/(dist + 1)
+
+            #maybe better
+            e2_obs += normal/(dist + mn.EPSILON)
+            div += 1/(dist + mn.EPSILON)
+
+        e2_obs = e2_obs/div
 
         e2_obs_norm = np.linalg.norm(e2_obs)
-        if not e2_obs_norm:
-            #resultant normal not defined
-            #what to do ?? -> return prev mat
-            return self.D
-        e2_obs = e2_obs/e2_obs_norm
+        #if the normal gets too small, we reduce w->0 to just take the D_ds matrix
+        delta_w_cont = 0.01
+        weight = weight*smooth_step(0, delta_w_cont, e2_obs_norm)
+
+        if e2_obs_norm:
+            #resultant normal is defined
+            e2_obs = e2_obs/e2_obs_norm
 
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
@@ -443,7 +475,8 @@ class TrackingController(Controller):
             e3 = np.cross(e1_DS, e2_obs)
             if not np.any(e3): #limit case if e1_DS//e2_obs -> DS aligned w/ normal
                 warnings.warn("Limit case")
-                return self.D #what to do ??
+                #return self.D 
+                #handle later as D->I
             e2_DS = np.cross(e3, e1_DS)
 
         # we want both e2 to be cointained in the same half-plane/space
@@ -455,12 +488,6 @@ class TrackingController(Controller):
         #e2 is a combinaison of compliance perp to DS and away from obs
         e2_both = weight*e2_obs + (1-weight)*e2_DS
         e2_both = e2_both/np.linalg.norm(e2_both)
-
-        # extreme case were we are on the boundary of obs + exactly at the saddle point of 
-        # the obstacle avoidance ds modulation -> sould never realy happends
-        if np.abs(np.dot(e1_DS, e2_both)) == 1:
-            warnings.warn("Extreme case")
-            return self.D
 
         #construct the basis matrix
         if self.DIM == 2:
@@ -481,10 +508,23 @@ class TrackingController(Controller):
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
         lambda_3 = self.lambda_perp
 
+        #this is done such that at place where E is discutinous, D goes to identity, wich is still continouus
+        # extreme case were we are on the boundary of obs + exactly at the saddle point of 
+        # the obstacle avoidance ds modulation -> sould never realy happends
+        y =  np.abs(np.dot(e1_DS, e2_obs))
+        delta_E_cont = 0.01 #mn.EPSILON
+        lambda_2 = lambda_1*smooth_step(1-delta_E_cont, 1, y) +\
+                   lambda_2*smooth_step_neg(1-delta_E_cont, 1, y)
+        lambda_3 = lambda_1*smooth_step(1-delta_E_cont, 1, y) +\
+                   lambda_3*smooth_step_neg(1-delta_E_cont, 1, y)
+
         #if we go away from obs, we relax the stiffness
-        if np.dot(xdot, e2_obs) > 0:
-            lambda_2 = self.lambda_perp
-            pass
+        # if np.dot(xdot, e2_obs) > 0:
+        #     lambda_2 = self.lambda_perp
+        DELTA_RELAX = 0.01 #mn.EPSILON
+        res = np.dot(xdot, e2_obs)
+        lambda_2 = smooth_step(0, DELTA_RELAX, res)*self.lambda_perp +\
+                   smooth_step_neg(0, DELTA_RELAX, res)*lambda_2
         
         #contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
@@ -498,6 +538,60 @@ class TrackingController(Controller):
         D = self.E@self.lambda_mat@E_inv
         return D
 
+    def compute_D_matrix_wrt_both_mat_add(self, x, xdot):
+        """
+        Method 3 :
+        Compute the damping matrix with the new passive control. Will be stiff against 
+        obstacles, while also beeing stiff along the direction of motion and
+        compliant in the perpendicular directions.
+        This function implements the third method, with D beeing a positive semi-definite matrix
+        but construct with a weighted comb of D_ds and D_obs.
+        Works with many obstacles, and in 2/3 dimensions
+            param : 
+                x (np.array) : actual position
+                xdot(np.array) : actual velocity
+            return : 
+                D (np.array) : the damping matrix
+        """
+        D_obs = self.compute_D_matrix_wrt_obs(xdot)
+        D_ds = self.compute_D_matrix_wrt_DS(x)
+
+        #if there is no obstacles, we want D to be stiff w.r.t. the DS
+        if not np.size(self.obs_dist_list):
+            return D_ds
+    
+        weight = 0
+        div = 0
+        e2 = np.zeros(self.DIM)
+        #get the normals and compute the weight of the obstacles
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            #if dist <0 we're IN the obs
+            if dist <= 0: 
+                return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
+            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            if weight_i > weight:
+                weight = weight_i
+
+            #e2_obs is a weighted linear combianation of all the normals
+            #e2_obs += normal/(dist + 1)
+            e2 += normal/(dist + mn.EPSILON)
+            div += 1/(dist + mn.EPSILON)
+
+        e2 = e2/div
+
+        e2_norm = np.linalg.norm(e2)
+        #if the normal gets too small, we reduce w->0 to just take the D_ds matrix
+        delta_w_cont = 0.01 
+        weight = weight*smooth_step(0, delta_w_cont, e2_norm)
+        if e2_norm:
+            #resultant normal is defined
+            e2 = e2/e2_norm
+        
+        D_tot = (1-weight)*D_ds + weight*D_obs
+        return D_tot
+
     #ENERGY TANK RELATED
     #all x, xdot must be from actual step and not future (i.e. must not be updated yet)
     # D must be updated yet
@@ -505,6 +599,7 @@ class TrackingController(Controller):
         """
         Perform one time step (euler) to update the energy tank. Also updates the parameters 
         related to the energy storage (alpha, beta, ...)
+        /!\ only designed for approach == Approach.ORTHO_BASIS
             param : 
                 x (np.array) : actual position
                 xdot(np.array) : actual velocity

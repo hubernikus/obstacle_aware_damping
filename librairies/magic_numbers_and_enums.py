@@ -15,8 +15,8 @@ EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
 
 MAX_TAU_C = 500.0 #max possible torque #500 works well, 100 also, but less damped against obs
 
-NOISE_MAGN_POS = 0.0 #0.5 still good
-NOISE_MAGN_VEL = 5. #1 still good
+NOISE_STD_POS = 0.5 #0.5 still good
+NOISE_STD_VEL = 0.0 #1 still good
 
 #tank system
 S_MAX = 100.0
@@ -37,3 +37,8 @@ class TypeOfDMatrix(Enum):
     DS_FOLLOWING = auto()
     OBS_PASSIVITY = auto()
     BOTH = auto()
+
+class Approach(Enum):
+    ORTHO_BASIS = auto()
+    NON_ORTHO_BASIS = auto()
+    WEIGHT_DS_OBS_MAT = auto()

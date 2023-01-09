@@ -15,6 +15,7 @@ from librairies.controller import RegulationController, TrackingController
 from librairies.robot_animation import CotrolledRobotAnimation
 
 from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
+from librairies.magic_numbers_and_enums import Approach
 import librairies.magic_numbers_and_enums as mn
 
 #just for plotting : global var, remoove when no bug
@@ -22,8 +23,8 @@ from librairies.robot_animation import s_list
 
 def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
-    mn.NOISE_MAGN_POS = noise_pos
-    mn.NOISE_MAGN_VEL = noise_vel
+    mn.NOISE_STD_POS = noise_pos
+    mn.NOISE_STD_VEL = noise_vel
 
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
@@ -92,7 +93,7 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            ortho_basis_approach = False,
+            approach = Approach.ORTHO_BASIS,
             with_E_storage = False
         ),
     )
@@ -108,8 +109,8 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
         x_lim = [-3, 3],
-        y_lim = [-2.1, 2.1],
-        draw_ideal_traj = False, 
+        y_lim = [-1, 1.5],#[-2.1, 2.1],
+        draw_ideal_traj = True, 
         draw_qolo = False,
         rotate_qolo=False,
     )
@@ -123,21 +124,24 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    n = 9 #11
+    n = 8 #11
     epochs = 10 #10
     d_min_tab = np.zeros((n,epochs))
 
-    #noise_level = np.linspace(0.0,5.0,n) #for velocity
-    noise_level = np.linspace(0.0,0.8,n) #for position
+    noise_level = np.linspace(0.0,7.0,n) #for velocity
+    #noise_level = np.linspace(0.0,0.7,n) #for position
 
-    d_min_tab[0,0] = run_control_robot(noise_pos=0.7, noise_vel=0.0)
+    #d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)
         for e in range(epochs):
-            print("epoch :", e, "noise amp : ", noise)
-            d_min_tab[i,e] = run_control_robot(noise_pos=noise, noise_vel=0.0)
+            print("epoch :", e, "noise std : ", noise)
+            d_min_tab[i,e] = run_control_robot(noise_pos=0.0, noise_vel=noise)
             plt.close("all")
+            if i==0:
+                d_min_tab[0,:] = d_min_tab[0,0]
+                break
 
     mean = d_min_tab.mean(axis=1)
     std = d_min_tab.std(axis=1)
@@ -148,12 +152,12 @@ if (__name__) == "__main__":
     plt.plot(noise_level, mean)
     plt.axhline(y = 0.0, color = 'k', linestyle = '-')
     #plt.plot(noise_level, np.zeros_like(noise_level), "k")
-    plt.title(f"Effect of position measurement noise over {epochs} epochs")
+    plt.title(f"Effect of velocity measurement noise over {epochs} epochs")
     plt.ylabel("Closest distance to obstacle during simulation [m]")
-    plt.xlabel("Amplitude of position measurement noise [m]")
+    plt.xlabel("Standard deviation of velocity measurement noise [m/s]")
     fig.show()
     plt.show()
-    plt.savefig('pos_vel.png')
+    plt.savefig('vel_noise.png')
     plt.pause(100)
     pass
 

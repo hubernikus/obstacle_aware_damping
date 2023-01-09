@@ -150,8 +150,8 @@ class Robot:
         adds noise to the simulation measurements (either on position, velocity or both)
         """
         if self.noisy:
-            x = self.x + mn.NOISE_MAGN_POS*np.random.normal(0,1,self.DIM)
-            xdot = self.xdot + mn.NOISE_MAGN_VEL*np.random.normal(0,1,self.DIM)
+            x = self.x + np.random.normal(0,mn.NOISE_STD_POS,self.DIM)
+            xdot = self.xdot + np.random.normal(0, mn.NOISE_STD_VEL, self.DIM)
         else:
             x = self.x
             xdot = self.xdot
