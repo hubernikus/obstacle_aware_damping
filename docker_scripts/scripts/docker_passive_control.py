@@ -56,7 +56,7 @@ class PassiveObsController(Node):
         # for plot need to be all equal -> sphere, its the radius
         obs_axes_lenght = np.array([[0.20] * 3])
         obs_vel = np.array([[0.0] * 3])
-        no_obs = True  # to disable obstacles
+        no_obs = False  # to disable obstacles
         self.obstacle_env = self.sim.create_env(
             obs_position, obs_axes_lenght, obs_vel, no_obs)
 
@@ -133,6 +133,7 @@ class PassiveObsController(Node):
                       x[3:7], " actual vel : ", pos_dot, " des_vel by avoider", pos_dot_des)
 
                 # 2. compute the damping matrix and gains
+
                 D = self.sim.compute_D(pos, pos_dot, pos_dot_des)
                 KD_ang = np.diag([5.0] * 3)  # 1
                 big_D = np.zeros((6, 6))
@@ -193,7 +194,7 @@ class PassiveObsController(Node):
                 # 7. draw obs
                 if self.obstacle_env is not None:
                     # self.obstacle_env.update_obstacles()
-                    self.obstacle_env.update()
+                    #self.obstacle_env.update()
                     print('opti ok')
 
                 # 8. switch atractor if converged

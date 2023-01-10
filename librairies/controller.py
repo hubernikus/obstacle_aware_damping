@@ -473,10 +473,13 @@ class TrackingController(Controller):
             e2_DS = np.array([e1_DS[1], -e1_DS[0]])
         else:
             e3 = np.cross(e1_DS, e2_obs)
-            if not np.any(e3): #limit case if e1_DS//e2_obs -> DS aligned w/ normal
+            norm_e3 = np.linalg.norm(e3)
+            if not norm_e3: #limit case if e1_DS//e2_obs -> DS aligned w/ normal
                 warnings.warn("Limit case")
                 #return self.D 
                 #handle later as D->I
+            else:
+                e3 = e3/norm_e3
             e2_DS = np.cross(e3, e1_DS)
 
         # we want both e2 to be cointained in the same half-plane/space

@@ -62,10 +62,12 @@ class Simulated():
                 ),
                 obstacle_id=27,
             )
-
-        # self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
-        self.obstacle_environment.visualization_handler = RvizHandler(
-            self.obstacle_environment)
+        
+        #FOR SIM
+        self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
+        #FOR REAL ROBOT
+        #self.obstacle_environment.visualization_handler = RvizHandler(
+        #    self.obstacle_environment)
 
         return self.obstacle_environment
 
@@ -134,6 +136,7 @@ class Simulated():
         # compute vector relative to obstacles
         weight = 0
         e2_obs = np.zeros(DIM)
+        div = 0
         # compute the weight of the obstacles and resulting normal
         for normal, dist in zip(obs_normals_list.T, obs_dist_list):
             # if dist <0 we're IN the obs
@@ -147,21 +150,27 @@ class Simulated():
                 weight = weight_i
 
             # e2_obs is a weighted linear combianation of all the normals
-            e2_obs += normal/(dist + 1)
+            #e2_obs += normal/(dist + 1)
+            e2_obs += normal/(dist + EPSILON)
+            div += 1/(dist + EPSILON)
+
+        e2_obs = e2_obs/div
 
         e2_obs_norm = np.linalg.norm(e2_obs)
-        if not e2_obs_norm:
-            # resultant normal not defined
-            # what to do ?? -> return prev mat
-            return self.D
-        e2_obs = e2_obs/e2_obs_norm
+        #if the normal gets too small, we reduce w->0 to just take the D_ds matrix
+        DELTA_W_CONT = 0.01
+        weight = weight*smooth_step(0, DELTA_W_CONT, e2_obs_norm)
+
+        if e2_obs_norm:
+            #resultant normal is defined
+            e2_obs = e2_obs/e2_obs_norm
 
         # compute the basis of the DS : [e1_DS, e2_DS] or 3d
         e3 = np.cross(e1_DS, e2_obs)
         norm_e3 = np.linalg.norm(e3)
         if not norm_e3:  # limit case if e1_DS//e2_obs -> DS aligned w/ normal
             warnings.warn("Limit case")
-            return self.D  # what to do ??
+            #return self.D  # what to do ??
         else:
             e3 = e3/norm_e3
         e2_DS = np.cross(e3, e1_DS)
@@ -186,7 +195,12 @@ class Simulated():
             raise ("What did trigger this, it shouldn't")
 
         # construct the basis matrix
-        E = np.array([e1_both, e2_both, e3]).T
+        meth_1 = False
+        if meth_1:
+            E = np.array([e1_both, e2_both, e3]).T
+        else:
+            E = np.array([e1_DS, e2_both, e3]).T
+
         E_inv = np.linalg.inv(E)
 
         # compute the damping coeficients along selective directions
@@ -194,9 +208,22 @@ class Simulated():
         lambda_2 = (1-weight)*self.lambda_perp + weight*self.lambda_obs
         lambda_3 = self.lambda_perp
 
-        # if we go away from obs, we relax the stiffness
-        if np.dot(xdot, e2_obs) > 0:
-            lambda_2 = self.lambda_perp
+        #this is done such that at place where E is discutinous, D goes to identity, wich is still continouus
+        y =  np.abs(np.dot(e1_DS, e2_obs))
+        DELTA_E_CONT = 0.01 #mn.EPSILON
+        lambda_2 = lambda_1*smooth_step(1-DELTA_E_CONT, 1, y) +\
+                   lambda_2*smooth_step_neg(1-DELTA_E_CONT, 1, y)
+        lambda_3 = lambda_1*smooth_step(1-DELTA_E_CONT, 1, y) +\
+                   lambda_3*smooth_step_neg(1-DELTA_E_CONT, 1, y)
+
+        #if we go away from obs, we relax the stiffness
+        # if np.dot(xdot, e2_obs) > 0:
+        #     lambda_2 = self.lambda_perp
+        DELTA_RELAX = 0.01 #mn.EPSILON
+        res = np.dot(xdot, e2_obs)
+        lambda_2 = smooth_step(0, DELTA_RELAX, res)*self.lambda_perp +\
+                   smooth_step_neg(0, DELTA_RELAX, res)*lambda_2
+
 
         # contruct the matrix containing the damping coefficient along selective directions
         lambda_mat = np.array([[lambda_1, 0.0, 0.0],
@@ -207,3 +234,34 @@ class Simulated():
         D = E@lambda_mat@E_inv
         self.D = D
         return D
+
+
+#helper smooth step functions
+def smooth_step(a,b,x):
+    """
+    Implements a smooth step function
+        param :
+            a : low-limit
+            b : high-limit 
+            x : value where we want to evaluate the function
+        return :
+            H_a_b(x) (int) : the value of the smooth step function
+    """
+    if x < a: 
+        return 0
+    if x > b:
+        return 1
+    else:
+        return 6*((x-a)/(b-a))**5 - 15*((x-a)/(b-a))**4 + 10*((x-a)/(b-a))**3
+
+def smooth_step_neg(a,b,x):
+    """
+    Implements a negative smooth step function
+        param :
+            a : high-limit
+            b : low-limit 
+            x : value where we want to evaluate the function
+        return :
+            H_a_b(x) (int) : the value of the negative smooth step function
+    """
+    return 1 - smooth_step(a,b,x)
