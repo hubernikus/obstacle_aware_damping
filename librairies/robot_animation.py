@@ -563,8 +563,14 @@ class CotrolledRobotAnimation(Animator):
         self.new_disturbance = True
 
     def artificial_disturbances_2D(self, ii):
-        if ii == 25:
-            disturbance = np.array([-1.,-3.])*self.disturbance_scaling
+        if ii == 20:
+            disturbance = np.array([-1.,3.])*self.disturbance_scaling
+            self.robot.tau_e = disturbance
+            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
+            self.new_disturbance = True
+
+        if ii == 45:
+            disturbance = np.array([-3., -2.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True
@@ -573,13 +579,13 @@ class CotrolledRobotAnimation(Animator):
         #     self.robot.tau_e = disturbance
         #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
         #     self.new_disturbance = True
-        if ii == 65:
-            disturbance = np.array([2.,-4.])*self.disturbance_scaling
-            self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
-            self.new_disturbance = True
-        if ii == 80:
-            disturbance = np.array([3.,1.])*self.disturbance_scaling
+        # if ii == 65:
+        #     disturbance = np.array([2.,-4.])*self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
+        #     self.new_disturbance = True
+        if ii == 100:
+            disturbance = np.array([4.,0.])*self.disturbance_scaling
             self.robot.tau_e = disturbance
             self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
             self.new_disturbance = True

@@ -56,7 +56,7 @@ class PassiveObsController(Node):
         # for plot need to be all equal -> sphere, its the radius
         obs_axes_lenght = np.array([[0.20] * 3])
         obs_vel = np.array([[0.0] * 3])
-        no_obs = False  # to disable obstacles
+        no_obs = True  # to disable obstacles
         self.obstacle_env = self.sim.create_env(
             obs_position, obs_axes_lenght, obs_vel, no_obs)
 

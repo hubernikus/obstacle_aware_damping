@@ -37,10 +37,24 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     #setup of obstacles
     obstacle_environment = ObstacleContainer()
+
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[0.6, 0.6],
+    #         center_position=np.array([0.0, 0.0]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
+
     obstacle_environment.append(
         Cuboid(
-            axes_length=[0.6, 0.6],
-            center_position=np.array([0.0, 0.0]),
+            axes_length=[0.4, 1.8],
+            center_position=np.array([-0.5, -0.5]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -49,18 +63,19 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
             # repulsion_coeff=1.4,
         )
     )
-    # obstacle_environment.append(
-    #     Cuboid(
-    #         axes_length=[0.5, 0.5],
-    #         center_position=np.array([0.0, 1.0]),
-    #         # center_position=np.array([0.9, 0.25]),
-    #         margin_absolut=0.15,
-    #         # orientation=10 * pi / 180,
-    #         #linear_velocity = np.array([0.0, 0.5]),
-    #         tail_effect=False,
-    #         # repulsion_coeff=1.4,
-    #     )
-    # )
+
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[0.4, 1.8],
+            center_position=np.array([0.8, 0.8]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 1.0]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
 
     #setup of dynamical system
     initial_dynamics = LinearSystem(
@@ -100,7 +115,7 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
-        it_max = 200, #longer animation
+        it_max = 300, #longer animation
         dt_simulation = dt_simulation,
         dt_sleep = dt_simulation,
     )
@@ -109,10 +124,10 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
         x_lim = [-3, 3],
-        y_lim = [-1, 1.5],#[-2.1, 2.1],
+        y_lim = [-2.1, 2.1],#[-2.1, 2.1],
         draw_ideal_traj = True, 
-        draw_qolo = False,
-        rotate_qolo=False,
+        draw_qolo = True,
+        rotate_qolo=True,
     )
 
     my_animation.run(save_animation=False)
@@ -131,7 +146,7 @@ if (__name__) == "__main__":
     noise_level = np.linspace(0.0,7.0,n) #for velocity
     #noise_level = np.linspace(0.0,0.7,n) #for position
 
-    #d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0)
+    d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)

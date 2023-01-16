@@ -30,11 +30,13 @@ def run_control_robot():
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
     #initial condition
-    x_init = np.array([-1.5, 0.3])  #0.3
+    #x_init = np.array([-2., 0.0])  #0.3
+    x_init = np.array([0.1, 2.5])
     xdot_init = np.array([0.0, 0.0])
 
     #setup atractor 
-    attractor_position = np.array([2.0, 0.0])
+    # attractor_position = np.array([2.0, 0.0])
+    attractor_position = np.array([0.0, -2.5])
 
     #setup of obstacles
     obstacle_environment = ObstacleContainer()
@@ -76,19 +78,32 @@ def run_control_robot():
     #     )
     # )
 
-    #SETUP B
-    obstacle_environment.append(
-        Cuboid(
-            axes_length=[1.6, 0.6],
-            center_position=np.array([0.0, 0.0]),
-            # center_position=np.array([0.9, 0.25]),
-            margin_absolut=0.15,
-            # orientation=10 * pi / 180,
-            #linear_velocity = np.array([0.0, 1.0]),
-            tail_effect=False,
-            # repulsion_coeff=1.4,
-        )
-    )
+    #SETUP B - used for pres
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[0.4, 1.8],
+    #         center_position=np.array([-0.5, -0.5]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
+
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[0.4, 1.8],
+    #         center_position=np.array([0.8, 0.8]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
 
     #SETUP C
     # obstacle_environment.append(
@@ -103,6 +118,44 @@ def run_control_robot():
     #         # repulsion_coeff=1.4,
     #     )
     # )
+
+    #SETUP D
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[1.6, 0.6],
+            center_position=np.array([-0.3, 1.5]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 1.0]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[3.0, 2.0],
+            center_position=np.array([1.5, -0.8]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 1.0]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
+    obstacle_environment.append(
+        Cuboid(
+            axes_length=[2.0, 2.0],
+            center_position=np.array([-1.6, -0.8]),
+            # center_position=np.array([0.9, 0.25]),
+            margin_absolut=0.15,
+            # orientation=10 * pi / 180,
+            #linear_velocity = np.array([0.0, 1.0]),
+            tail_effect=False,
+            # repulsion_coeff=1.4,
+        )
+    )
 
 
     #setup of dynamical system
@@ -139,7 +192,7 @@ def run_control_robot():
         x = x_init, 
         xdot = xdot_init, 
         dt = dt_simulation,
-        noisy= True,
+        noisy= False,
         controller = TrackingController(
             dynamic_avoider = ModulationAvoider(
                 initial_dynamics=initial_dynamics,
@@ -150,8 +203,8 @@ def run_control_robot():
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            approach= Approach.NON_ORTHO_BASIS, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
-            with_E_storage = True
+            approach= Approach.ORTHO_BASIS, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
+            with_E_storage = False
         ),
     )
 
@@ -166,8 +219,10 @@ def run_control_robot():
         robot = robot_tracked,
         obstacle_environment = obstacle_environment,
         DIM = 2,
-        x_lim = [-3,3], #[-1.5, 2.2], #-3
-        y_lim = [-2.1,2.1], #[-1.2, 2.1], #-2.1
+        # x_lim = [-3,3], #[-1.5, 2.2], #-3
+        # y_lim = [-2.1,2.1], #[-1.2, 2.1], #-2.1
+        x_lim = [-1.5,1.5], #[-1.5, 2.2], #-3
+        y_lim = [-3,3], #[-1.2, 2.1], #-2.1
         draw_ideal_traj = False, 
         draw_qolo = True,
         rotate_qolo=True,
@@ -295,4 +350,4 @@ if (__name__) == "__main__":
     plt.xlabel("Iteration")
     plt.ylabel("Energy tank level")
     plt.title("Energy tank level at each iteration")
-    plt.show(block = True)
+    #plt.show(block = True)

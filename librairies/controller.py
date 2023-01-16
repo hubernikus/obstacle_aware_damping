@@ -112,7 +112,8 @@ class TrackingController(Controller):
         now also with energy storage
         """
     
-        if not (self.with_E_storage and self.approach == Approach.ORTHO_BASIS):
+        if not (self.with_E_storage and self.approach == Approach.ORTHO_BASIS and\
+                self.type_of_D_matrix ==TypeD.BOTH):
             x_dot_des = self.dynamic_avoider.evaluate(x)
             tau_c = self.G - self.D@(xdot - x_dot_des)
 
