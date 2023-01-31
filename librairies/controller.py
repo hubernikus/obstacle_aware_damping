@@ -153,6 +153,8 @@ class TrackingController(Controller):
                 D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
             elif self.approach == Approach.WEIGHT_DS_OBS_MAT:
                 D = self.compute_D_matrix_wrt_both_mat_add(x, xdot)
+            elif self.approach == Approach.WEIGHT_DS_OBS_MAT_V2:
+                D = self.compute_D_matrix_wrt_both_mat_add_v2(x, xdot)
                 
         #improve stability at atractor, not recompute always D???
         if np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position) < mn.EPS_CONVERGENCE:
@@ -544,7 +546,7 @@ class TrackingController(Controller):
 
     def compute_D_matrix_wrt_both_mat_add(self, x, xdot):
         """
-        Method 3 :
+        Method 3 - prob wrong:
         Compute the damping matrix with the new passive control. Will be stiff against 
         obstacles, while also beeing stiff along the direction of motion and
         compliant in the perpendicular directions.
@@ -595,6 +597,137 @@ class TrackingController(Controller):
         
         D_tot = (1-weight)*D_ds + weight*D_obs
         return D_tot
+
+    def compute_D_matrix_wrt_both_mat_add_v2(self, x, xdot):
+        """
+        Method 3 v2 : not compatible with storage
+        Compute the damping matrix with the new passive control. Will be stiff against 
+        obstacles, while also beeing stiff along the direction of motion and
+        compliant in the perpendicular directions.
+        This function implements the third method, with D beeing a positive semi-definite matrix
+        but construct with a weighted comb of D_ds and D_obs.
+        Works with many obstacles, and in 2/3 dimensions
+            param : 
+                x (np.array) : actual position
+                xdot(np.array) : actual velocity
+            return : 
+                D (np.array) : the damping matrix
+        """
+        #############
+        #### Dds ####
+        #############
+        #Ds matrix follow the ds, like in kronander paper
+        # e1 : points in DS dir
+        # e2, ... : arbitrary ortho basis
+
+        #get desired velocity 
+        x_dot_des = self.dynamic_avoider.evaluate(x)
+
+        #if the desired velocity is too small, we risk numerical issue, we have converge (or sadle point)
+        if np.linalg.norm(x_dot_des) < mn.EPSILON:
+            #we just return the previous damping matrix
+            return self.D
+        
+        #compute the vector align to the DS
+        e1_DS = x_dot_des/np.linalg.norm(x_dot_des)
+
+        #construct the basis matrix, align to the DS direction 
+        E_DS = get_orthogonal_basis(e1_DS)
+        E_DS_inv = np.linalg.inv(E_DS)
+
+        #contruct the matrix containing the damping coefficient along selective directions
+        if self.DIM == 2:
+            lambda_mat_DS = np.array([[self.lambda_DS, 0.0],
+                                   [0.0, self.lambda_perp]])
+        else:
+            lambda_mat_DS = np.array([[self.lambda_DS, 0.0, 0.0], 
+                                   [0.0, self.lambda_perp, 0.0],
+                                   [0.0, 0.0, self.lambda_perp]])
+
+        #compose the damping matrix
+        D_DS = E_DS@lambda_mat_DS@E_DS_inv
+
+        #if there is no obstacles, we want D to be stiff w.r.t. the DS
+        if not np.size(self.obs_dist_list):
+            return D_DS
+
+        ##############
+        #### Dobs ####
+        ##############
+        #e1 : points in normal
+        #e2 : proj of e1:ds that's ortho to e1_obs
+
+        weight = 0
+        div = 0
+        e1_obs = np.zeros(self.DIM)
+        #get the normals and compute the weight of the obstacles
+        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
+            #if dist <0 we're IN the obs
+            if dist <= 0: 
+                return self.D
+
+            #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
+            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            if weight_i > weight:
+                weight = weight_i
+
+            #e1 is a weighted linear combination of all the normals
+            e1_obs += normal/(dist + mn.EPSILON)
+            div += 1/(dist + mn.EPSILON)
+
+        e1_obs = e1_obs/div
+
+        e1_obs_norm = np.linalg.norm(e1_obs)
+        #if the normal gets too small, we reduce w->0 to just take the D_ds matrix
+        delta_w_cont = 0.01 
+        weight = weight*smooth_step(0, delta_w_cont, e1_obs_norm)
+        if e1_obs_norm:
+            #resultant normal is defined
+            e1_obs = e1_obs/e1_obs_norm
+        
+
+        #basis construct depend on dim
+        if self.DIM == 3:
+            #def e3
+            e3_obs = np.cross(e1_obs, e1_DS)
+            #def e2
+            e2_obs = np.cross(e3_obs, e1_obs)
+            #construct the basis matrix
+            E_obs = np.array([e1_obs, e2_obs, e3_obs]).T
+            E_obs_inv = np.linalg.inv(E_obs)
+            lambda_mat_obs = np.array([[self.lambda_obs, 0.0, 0.0], 
+                                   [0.0, self.lambda_DS, 0.0],
+                                   [0.0, 0.0, self.lambda_perp]])
+
+        elif self.DIM == 2:
+            #def e2
+            e2_obs = np.array([e1_obs[1], -e1_obs[0]])
+            if np.dot(e2_obs, e1_DS) < 0:
+                e2_obs = -e2_obs
+            #construct the basis matrix
+            E_obs = np.array([e1_obs, e2_obs]).T
+            E_obs_inv = np.linalg.inv(E_obs)
+
+            lambda_mat_obs = np.array([[self.lambda_obs, 0.0],
+                                   [0.0, self.lambda_DS]])
+
+        #if normal and DS begin to align, reduce lambda 2 to lambda_perp -> to keep continuity
+        res = np.abs(np.dot(e1_DS, e1_obs))
+        delta_E_cont = 0.01
+        lambda_mat_obs[1,1] = self.lambda_perp*smooth_step(1-delta_E_cont, 1, res) +\
+                   lambda_mat_obs[1,1]*smooth_step_neg(1-delta_E_cont, 1, res)
+
+        #build D_obs           
+        D_obs = E_obs@lambda_mat_obs@E_obs_inv
+
+
+        #####################
+        #### combine D's ####
+        #####################
+
+        D_tot = (1-weight)*D_DS + weight*D_obs
+        return D_tot
+
 
     #ENERGY TANK RELATED
     #all x, xdot must be from actual step and not future (i.e. must not be updated yet)

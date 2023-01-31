@@ -42,3 +42,4 @@ class Approach(Enum):
     ORTHO_BASIS = auto()
     NON_ORTHO_BASIS = auto()
     WEIGHT_DS_OBS_MAT = auto()
+    WEIGHT_DS_OBS_MAT_V2 = auto()

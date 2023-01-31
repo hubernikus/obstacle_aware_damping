@@ -132,30 +132,30 @@ def run_control_robot():
             # repulsion_coeff=1.4,
         )
     )
-    obstacle_environment.append(
-        Cuboid(
-            axes_length=[3.0, 2.0],
-            center_position=np.array([1.5, -0.8]),
-            # center_position=np.array([0.9, 0.25]),
-            margin_absolut=0.15,
-            # orientation=10 * pi / 180,
-            #linear_velocity = np.array([0.0, 1.0]),
-            tail_effect=False,
-            # repulsion_coeff=1.4,
-        )
-    )
-    obstacle_environment.append(
-        Cuboid(
-            axes_length=[2.0, 2.0],
-            center_position=np.array([-1.6, -0.8]),
-            # center_position=np.array([0.9, 0.25]),
-            margin_absolut=0.15,
-            # orientation=10 * pi / 180,
-            #linear_velocity = np.array([0.0, 1.0]),
-            tail_effect=False,
-            # repulsion_coeff=1.4,
-        )
-    )
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[3.0, 2.0],
+    #         center_position=np.array([1.5, -0.8]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
+    # obstacle_environment.append(
+    #     Cuboid(
+    #         axes_length=[2.0, 2.0],
+    #         center_position=np.array([-1.6, -0.8]),
+    #         # center_position=np.array([0.9, 0.25]),
+    #         margin_absolut=0.15,
+    #         # orientation=10 * pi / 180,
+    #         #linear_velocity = np.array([0.0, 1.0]),
+    #         tail_effect=False,
+    #         # repulsion_coeff=1.4,
+    #     )
+    # )
 
 
     #setup of dynamical system
@@ -203,7 +203,7 @@ def run_control_robot():
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            approach= Approach.ORTHO_BASIS, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
+            approach= Approach.WEIGHT_DS_OBS_MAT_V2, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
             with_E_storage = False
         ),
     )
