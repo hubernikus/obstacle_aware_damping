@@ -604,7 +604,7 @@ class TrackingController(Controller):
         Compute the damping matrix with the new passive control. Will be stiff against 
         obstacles, while also beeing stiff along the direction of motion and
         compliant in the perpendicular directions.
-        This function implements the third method, with D beeing a positive semi-definite matrix
+        This function implements the third method v2, with D beeing a positive semi-definite matrix
         but construct with a weighted comb of D_ds and D_obs.
         Works with many obstacles, and in 2/3 dimensions
             param : 
@@ -686,12 +686,24 @@ class TrackingController(Controller):
             e1_obs = e1_obs/e1_obs_norm
         
 
-        #basis construct depend on dim
+        #basis construction depends on dimension
         if self.DIM == 3:
-            #def e3
-            e3_obs = np.cross(e1_obs, e1_DS)
-            #def e2
-            e2_obs = np.cross(e3_obs, e1_obs)
+            #check if alignement
+            if np.abs(np.dot(e1_DS, e1_obs)) == 1:
+                #limit case : normal and DS are aligned
+                #def e2 in limit case
+                e2_obs = np.array([e1_obs[1], -e1_obs[0], 0])
+                if not any(e2_obs):
+                    e2_obs = np.array([e1_obs[2], 0, -e1_obs[0]])
+                #def e3 in limit case
+                e3_obs = np.cross(e1_obs, e2_obs)
+            else:
+                #base case
+                #def e3
+                e3_obs = np.cross(e1_obs, e1_DS)
+                #def e2 : closest projection of e1_DS perp to e1_obs
+                e2_obs = np.cross(e3_obs, e1_obs)
+
             #construct the basis matrix
             E_obs = np.array([e1_obs, e2_obs, e3_obs]).T
             E_obs_inv = np.linalg.inv(E_obs)
@@ -707,7 +719,6 @@ class TrackingController(Controller):
             #construct the basis matrix
             E_obs = np.array([e1_obs, e2_obs]).T
             E_obs_inv = np.linalg.inv(E_obs)
-
             lambda_mat_obs = np.array([[self.lambda_obs, 0.0],
                                    [0.0, self.lambda_DS]])
 

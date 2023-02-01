@@ -306,8 +306,8 @@ def run_control_robot_3D():
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
             type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
-            approach = Approach.WEIGHT_DS_OBS_MAT, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
-            with_E_storage = True
+            approach = Approach.WEIGHT_DS_OBS_MAT_V2, #Aproach.ORTHO_BASIS or NON_ORTHO_BASIS or WEIGHT_DS_OBS_MAT
+            with_E_storage = False
         ),
     )
 
@@ -336,8 +336,8 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    run_control_robot()
-    #run_control_robot_3D()
+    #run_control_robot()
+    run_control_robot_3D()
 
     #just for plotting s tank, remoove when done, or implemment better
     plt.close("all")

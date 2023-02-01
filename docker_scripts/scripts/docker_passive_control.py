@@ -67,7 +67,7 @@ class PassiveObsController(Node):
         self.attractor_position = self.attractor_A
         self.attrator_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
         self.max_vel = 0.2
-        self.sim.create_DS_copy(self.attractor_position,
+        self.sim.create_lin_DS(self.attractor_position,
                                 self.A_matrix, self.max_vel)
 
         # create modulation avoider to modulate final DS
@@ -216,7 +216,7 @@ class PassiveObsController(Node):
                         atr_a = True
 
                     # update the DS
-                    self.sim.create_DS_copy(
+                    self.sim.create_lin_DS(
                         self.attractor_position, self.A_matrix, self.max_vel)
 
                     # update the modulation avoider to modulate final DS

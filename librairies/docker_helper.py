@@ -71,11 +71,20 @@ class Simulated():
 
         return self.obstacle_environment
 
-    def create_DS_copy(self, attractor_position, A_matrix, max_vel):
+    def create_lin_DS(self, attractor_position, A_matrix, max_vel):
         self.initial_dynamics = LinearSystem(
             attractor_position=attractor_position,
             A_matrix=A_matrix,
             dimension=3,
+            maximum_velocity=max_vel,
+            distance_decrease=0.1,  # if too small, could lead to instable around atractor
+        )
+
+    def create_ang_DS(self, attractor_quaternion, A_matrix, max_vel):
+        self.initial_ang_dynamics = LinearSystem(
+            attractor_position=attractor_quaternion,
+            A_matrix=A_matrix,
+            dimension=4,
             maximum_velocity=max_vel,
             distance_decrease=0.1,  # if too small, could lead to instable around atractor
         )
