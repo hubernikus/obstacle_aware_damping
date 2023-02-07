@@ -73,6 +73,7 @@ class CartesianSpaceController(Node):
         # Get robot state to set up the target in the same frame
         while not (state := self.robot.get_state()) and rclpy.ok():
             print("Awaiting first state.")
+        print("Recieved first state.")
 
         self.attractor_position = np.array([0.6, -0.2, 0.5])
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
@@ -175,6 +176,12 @@ class CartesianSpaceController(Node):
         desired_twist = sr.CartesianTwist(self.ds.evaluate(state.ee_state))
         desired_twist.clamp(self.clamp_linear, self.clamp_angular)
 
+        print("desired lin vel : ", desired_twist.get_linear_velocity())
+        print("current lin vel : ", state.ee_state.get_linear_velocity())
+        print("desired ang vel : ", desired_twist.get_angular_velocity())
+        print("current ang vel : ", state.ee_state.get_angular_velocity())
+
+
         # Update Damping-matrix based on desired velocity
         self.update_dissipative_controller(desired_twist)
 
@@ -187,6 +194,7 @@ class CartesianSpaceController(Node):
         command.joint_state = state.joint_state
         command.joint_state.set_torques(cmnd_dissipative.get_torques())
         self.robot.send_command(command)
+        print("Command sent.")
 
 
 if (__name__) == "__main__":
@@ -195,7 +203,7 @@ if (__name__) == "__main__":
     robot_interface = RobotInterface("*:1601", "*:1602")
 
     controller = CartesianSpaceController(
-        robot=robot_interface, freq=100, is_simulation=False
+        robot=robot_interface, freq=100, is_simulation=True
     )
 
     try:

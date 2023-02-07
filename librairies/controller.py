@@ -728,6 +728,12 @@ class TrackingController(Controller):
         lambda_mat_obs[1,1] = self.lambda_perp*smooth_step(1-delta_E_cont, 1, res) +\
                    lambda_mat_obs[1,1]*smooth_step_neg(1-delta_E_cont, 1, res)
 
+        #if we go away from obs, we relax the stiffness, in obs directon
+        DELTA_RELAX = 0.01
+        res = np.dot(xdot, e1_obs)
+        lambda_mat_obs[0,0] = smooth_step(0, DELTA_RELAX, res)*self.lambda_perp +\
+                   smooth_step_neg(0, DELTA_RELAX, res)*lambda_mat_obs[0,0]
+
         #build D_obs           
         D_obs = E_obs@lambda_mat_obs@E_obs_inv
 

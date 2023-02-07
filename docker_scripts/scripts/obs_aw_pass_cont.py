@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
 
+from scipy.spatial.transform import Rotation as R
+
 import rclpy
 from rclpy.node import Node
 
@@ -79,6 +81,7 @@ class ObsstacleAwarePassiveCont(Node):
         # Get robot state to set up the target in the same frame
         while not (state := self.robot.get_state()) and rclpy.ok():
             print("Awaiting first state.")
+        print("First state recieved.")
 
         #redifinned later
         self.attractor_position = np.array([0.6, -0.2, 0.5])
@@ -110,11 +113,11 @@ class ObsstacleAwarePassiveCont(Node):
         )
 
         # create obstacle env
+        no_obs = True  # to disable obstacles
         obs_position = np.array([[0.0, 0.0, 0.0]])  # these are N x 3
         # for plot need to be all equal -> sphere, its the radius
         obs_axes_lenght = np.array([[0.20] * 3])
         obs_vel = np.array([[0.0] * 3])
-        no_obs = True  # to disable obstacles
         self.obstacle_env = self.sim.create_env(
             obs_position, obs_axes_lenght, obs_vel, no_obs
         )
@@ -126,6 +129,9 @@ class ObsstacleAwarePassiveCont(Node):
         self.attractor_B = np.array([0.4, -0.3, 0.4])
         self.attractor_position = self.attractor_A
         self.attrator_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
+        r = R.from_quat(self.attrator_quaternion)
+        self.attractor_euler =  r.as_euler('xyz', degrees=False) #zyx #NOT SURE, what convention used ? 
+
         self.max_vel = 0.2
         self.sim.create_lin_DS(
             self.attractor_position,
@@ -133,7 +139,7 @@ class ObsstacleAwarePassiveCont(Node):
             self.max_vel
         )
         self.sim.create_ang_DS(
-            self.attractor_quaternion,
+            self.attractor_euler,
             self.A_ang,
             self.max_vel
         )
@@ -178,7 +184,11 @@ class ObsstacleAwarePassiveCont(Node):
 
         self.ctrl_dissipative.set_parameter_value("damping", D, sr.ParameterType.MATRIX)
 
-    def update_dissipative_controller(self, desired_twist: sr.CartesianTwist) -> None:
+    def update_dissipative_controller(
+        self, 
+        desired_twist: sr.CartesianTwist,
+        ee_state : sr.CartesianState
+    ) -> None:
         des_lin_vel = desired_twist.get_linear_velocity()
         if not (lin_norm := np.linalg.norm(des_lin_vel)):
             D = np.diag(
@@ -199,9 +209,8 @@ class ObsstacleAwarePassiveCont(Node):
         ###########################
         ###########################
         #extract linear position and velocity from current state
-        state = self.robot.get_state()
-        xyz = state.ee_state.get_pose()[:3]
-        lin_vel = state.ee_state.get_linear_velocity()
+        xyz = ee_state.get_pose()[:3]
+        lin_vel = ee_state.get_linear_velocity()
 
         #construction of the damping matrix
         D = np.zeros((6, 6))
@@ -244,31 +253,41 @@ class ObsstacleAwarePassiveCont(Node):
         ######################
         #computes desired twist
         pose = state.ee_state.get_pose()
+        # print(dir(state.ee_state))
+        # print(state.ee_state.get_orientation_coefficients())
+        # print(state.ee_state.get_transformation_matrix())
+        # breakpoint()
+        r = R.from_quat(pose[3:]) #pose[3:7] is quaternion
+        ang = r.as_euler('xyz', degrees=False) #zyx                     #what convention ???
         des_lin_vel = self.sim.dynamic_avoider.evaluate(
             pose[:3] #xyz
         )
         des_ang_vel = self.sim.initial_ang_dynamics.evaluate(
-            pose[3:] #quaternion
+            ang #euler
         )
 
-
-        #### MAYBE NEED TO BE IN ANGULAR !!!!! not quat -> change that
+        ### NEED TO BE EULER ANGLES
         des_twist = np.concatenate((des_lin_vel, des_ang_vel))
 
         #traduction for cpp
         desired_twist = sr.CartesianTwist(
-            state.get_name(),
+            state.ee_state.get_name(),
             des_twist,
-            state.get_reference_frame(),
-        )
+            state.ee_state.get_reference_frame(),
+        )   
         ######################
         ######################
+
+        print("desired lin vel : ", desired_twist.get_linear_velocity())
+        print("current lin vel : ", state.ee_state.get_linear_velocity())
+        print("desired ang vel : ", desired_twist.get_angular_velocity())
+        print("current ang vel : ", state.ee_state.get_angular_velocity())
 
         #desired_twist = sr.CartesianTwist(self.ds.evaluate(state.ee_state))
         desired_twist.clamp(self.clamp_linear, self.clamp_angular)
 
         # Update Damping-matrix based on desired velocity
-        self.update_dissipative_controller(desired_twist)
+        self.update_dissipative_controller(desired_twist, state.ee_state)
 
         cmnd_dissipative = self.ctrl_dissipative.compute_command(
             desired_twist, state.ee_state, state.jacobian
@@ -279,6 +298,7 @@ class ObsstacleAwarePassiveCont(Node):
         command.joint_state = state.joint_state
         command.joint_state.set_torques(cmnd_dissipative.get_torques())
         self.robot.send_command(command)
+        print("Command sent.")
 
 
 if (__name__) == "__main__":
