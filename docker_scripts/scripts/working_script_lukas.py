@@ -75,7 +75,7 @@ class CartesianSpaceController(Node):
             print("Awaiting first state.")
         print("Recieved first state.")
 
-        self.attractor_position = np.array([0.6, -0.2, 0.5])
+        self.attractor_position = np.array([0.3, -0.2, 0.5])
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
 
         target = sr.CartesianPose(
@@ -174,6 +174,7 @@ class CartesianSpaceController(Node):
         state.ee_state.set_torque(np.zeros(3))
 
         desired_twist = sr.CartesianTwist(self.ds.evaluate(state.ee_state))
+        print(desired_twist)
         desired_twist.clamp(self.clamp_linear, self.clamp_angular)
 
         print("desired lin vel : ", desired_twist.get_linear_velocity())

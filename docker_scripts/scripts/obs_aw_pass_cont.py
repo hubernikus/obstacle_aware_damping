@@ -21,6 +21,7 @@ from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
 # Custom helper librairies
 from librairies.docker_helper import Simulated
 
+ANGLE_CONV = 'zyx'
 
 class ObsstacleAwarePassiveCont(Node):
     def __init__(
@@ -70,6 +71,7 @@ class ObsstacleAwarePassiveCont(Node):
             "angular_damping", self.angular_damping, sr.ParameterType.DOUBLE
         )
 
+        ## unused
         self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
         self.ds.set_parameter_value(
             "gain", [50.0, 50.0, 50.0, 20.0, 20.0, 20.0], sr.ParameterType.DOUBLE_ARRAY
@@ -87,13 +89,14 @@ class ObsstacleAwarePassiveCont(Node):
         self.attractor_position = np.array([0.6, -0.2, 0.5])
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
 
+        ## unused
         target = sr.CartesianPose(
             state.ee_state.get_name(),
             self.attractor_position,
             self.attractor_quaternion,
             state.ee_state.get_reference_frame(),
         )
-
+        ## unused
         self.ds.set_parameter_value(
             "attractor",
             target,
@@ -130,9 +133,9 @@ class ObsstacleAwarePassiveCont(Node):
         self.attractor_position = self.attractor_A
         self.attrator_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
         r = R.from_quat(self.attrator_quaternion)
-        self.attractor_euler =  r.as_euler('xyz', degrees=False) #zyx #NOT SURE, what convention used ? 
+        self.attractor_euler =  r.as_euler(ANGLE_CONV, degrees=False) #zyx #NOT SURE, what convention used ? 
 
-        self.max_vel = 0.2
+        self.max_vel = 0.2          # ??? what param ? 
         self.sim.create_lin_DS(
             self.attractor_position,
             self.A_lin, 
@@ -190,7 +193,7 @@ class ObsstacleAwarePassiveCont(Node):
         ee_state : sr.CartesianState
     ) -> None:
         des_lin_vel = desired_twist.get_linear_velocity()
-        if not (lin_norm := np.linalg.norm(des_lin_vel)):
+        if not (np.linalg.norm(des_lin_vel)):
             D = np.diag(
                 [
                     self.linear_orthogonal_damping,
@@ -214,11 +217,24 @@ class ObsstacleAwarePassiveCont(Node):
 
         #construction of the damping matrix
         D = np.zeros((6, 6))
-        D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
+
+        ### to test, remoove 
+        D_linear = np.diag(
+            [
+                self.linear_principle_damping,
+                self.linear_orthogonal_damping,
+                self.linear_orthogonal_damping,
+            ]
+        )
+        D[:3, :3] = D_linear 
+        ### end test
+
+        #D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
         D[3:, 3:] = np.eye(3) * self.angular_damping
         self.ctrl_dissipative.set_parameter_value("damping", D, sr.ParameterType.MATRIX)
         ###########################
         ###########################
+        #previously 
 
         # D = np.zeros((6, 6))
 
@@ -258,7 +274,7 @@ class ObsstacleAwarePassiveCont(Node):
         # print(state.ee_state.get_transformation_matrix())
         # breakpoint()
         r = R.from_quat(pose[3:]) #pose[3:7] is quaternion
-        ang = r.as_euler('xyz', degrees=False) #zyx                     #what convention ???
+        ang = r.as_euler(ANGLE_CONV, degrees=False) #zyx                     #what convention ???
         des_lin_vel = self.sim.dynamic_avoider.evaluate(
             pose[:3] #xyz
         )
