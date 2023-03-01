@@ -80,15 +80,6 @@ class Simulated():
             distance_decrease=0.1,  # if too small, could lead to instable around atractor
         )
 
-    def create_ang_DS(self, attractor_quaternion, A_matrix, max_vel):
-        self.initial_ang_dynamics = LinearSystem(
-            attractor_position=attractor_quaternion,
-            A_matrix=A_matrix,
-            dimension=4,
-            maximum_velocity=max_vel,
-            distance_decrease=0.1,  # if too small, could lead to instable around atractor
-        )
-
     def create_mod_avoider(self):
         self.dynamic_avoider = ModulationAvoider(
             initial_dynamics=self.initial_dynamics,
@@ -114,6 +105,7 @@ class Simulated():
         #if the desired velocity is too small, we risk numerical issue, we have converge (or sadle point)
         if np.linalg.norm(x_dot_des) < EPSILON:
             #we just return the previous damping matrix
+            print("Carefull, risk of num. issues")
             return self.D
         
         #compute the vector align to the DS
@@ -134,6 +126,7 @@ class Simulated():
         #if there is no obstacles, we want D to be stiff w.r.t. the DS
         if not len(self.obstacle_environment):
             self.D = D_DS
+            breakpoint()
             return D_DS
 
         ###################

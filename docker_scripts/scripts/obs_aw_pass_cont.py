@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
 
-from scipy.spatial.transform import Rotation as R
-
 import rclpy
 from rclpy.node import Node
 
@@ -40,11 +38,12 @@ class ObsstacleAwarePassiveCont(Node):
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.COMPLIANT_TWIST)
         if is_simulation:
             print("Control mode: simulation")
-            self.linear_principle_damping = 1.0
-            self.linear_obstacle_damping = 1.2
-            self.linear_orthogonal_damping = 0.4
-            self.angular_stiffness = 0.5
-            self.angular_damping = 0.5
+            multiplier = 1. #increase for faster but less stable
+            self.linear_principle_damping = 1.0 * multiplier
+            self.linear_obstacle_damping = 1.2 * multiplier
+            self.linear_orthogonal_damping = 0.4 * multiplier
+            self.angular_stiffness = 0.5 * multiplier
+            self.angular_damping = 0.5 * multiplier
 
         else:
             print("Control mode: real")
@@ -71,7 +70,7 @@ class ObsstacleAwarePassiveCont(Node):
             "angular_damping", self.angular_damping, sr.ParameterType.DOUBLE
         )
 
-        ## unused
+        ## only use for the angular DS (3 last dimensions)
         self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
         self.ds.set_parameter_value(
             "gain", [50.0, 50.0, 50.0, 20.0, 20.0, 20.0], sr.ParameterType.DOUBLE_ARRAY
@@ -86,29 +85,27 @@ class ObsstacleAwarePassiveCont(Node):
         print("First state recieved.")
 
         #redifinned later
-        self.attractor_position = np.array([0.6, -0.2, 0.5])
+        self.attractor_A = np.array([0.5, -0.3, 0.4])
+        self.attractor_B = np.array([0.5, 0.3, 0.4])
+        self.attractor_position = self.attractor_A
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
 
-        ## unused
         target = sr.CartesianPose(
             state.ee_state.get_name(),
             self.attractor_position,
             self.attractor_quaternion,
             state.ee_state.get_reference_frame(),
         )
-        ## unused
+
         self.ds.set_parameter_value(
             "attractor",
             target,
             sr.ParameterType.STATE,
             sr.StateType.CARTESIAN_POSE,
         )
+
         
-        ############
-        ############
-
-        #create an instance where the DS is simulated
-
+        #create an instance where the DS for linear control is simulated
         self.sim = Simulated(
             lambda_DS=self.linear_principle_damping,
             lambda_perp=self.linear_orthogonal_damping,
@@ -116,43 +113,28 @@ class ObsstacleAwarePassiveCont(Node):
         )
 
         # create obstacle env
-        no_obs = True  # to disable obstacles
-        obs_position = np.array([[0.0, 0.0, 0.0]])  # these are N x 3
+        no_obs = False  # to disable obstacles
+        obs_position = np.array([[0.5, 0.0, 0.4]])  # these are N x 3
         # for plot need to be all equal -> sphere, its the radius
-        obs_axes_lenght = np.array([[0.20] * 3])
+        obs_axes_lenght = np.array([[0.10] * 3])
         obs_vel = np.array([[0.0] * 3])
         self.obstacle_env = self.sim.create_env(
             obs_position, obs_axes_lenght, obs_vel, no_obs
         )
 
-        #create the DS
+        #create the linear DS (copy of the one in cpp)
         self.A_lin = -np.diag([50.0, 50.0, 50.0])
-        self.A_ang = -np.diag([20.0, 20.0, 20.0])
-        self.attractor_A = np.array([0.4, 0.3, 0.4])
-        self.attractor_B = np.array([0.4, -0.3, 0.4])
-        self.attractor_position = self.attractor_A
-        self.attrator_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
-        r = R.from_quat(self.attrator_quaternion)
-        self.attractor_euler =  r.as_euler(ANGLE_CONV, degrees=False) #zyx #NOT SURE, what convention used ? 
-
         self.max_vel = 0.2          # ??? what param ? 
         self.sim.create_lin_DS(
             self.attractor_position,
             self.A_lin, 
             self.max_vel
         )
-        self.sim.create_ang_DS(
-            self.attractor_euler,
-            self.A_ang,
-            self.max_vel
-        )
 
         # create modulation avoider to modulate final DS
         self.sim.create_mod_avoider()
 
-        ############
-        ############
-
+        #instanciate the controller
         self.create_controller_dissipative()
 
         self.timer = self.create_timer(period, self.controller_callback)
@@ -202,15 +184,13 @@ class ObsstacleAwarePassiveCont(Node):
                     self.angular_damping,
                     self.angular_damping,
                     self.angular_damping,
-                ]
+                ]  
             )
             self.ctrl_dissipative.set_parameter_value(
                 "damping", D, sr.ParameterType.MATRIX
             )
             return
         
-        ###########################
-        ###########################
         #extract linear position and velocity from current state
         xyz = ee_state.get_pose()[:3]
         lin_vel = ee_state.get_linear_velocity()
@@ -218,40 +198,15 @@ class ObsstacleAwarePassiveCont(Node):
         #construction of the damping matrix
         D = np.zeros((6, 6))
 
-        ### to test, remoove 
-        D_linear = np.diag(
-            [
-                self.linear_principle_damping,
-                self.linear_orthogonal_damping,
-                self.linear_orthogonal_damping,
-            ]
-        )
-        D[:3, :3] = D_linear 
-        ### end test
+        #linear compunent are computed with new method
+        D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
 
-        #D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
+        #angular component are trivial and isotropic
         D[3:, 3:] = np.eye(3) * self.angular_damping
+
+        #update parameter
         self.ctrl_dissipative.set_parameter_value("damping", D, sr.ParameterType.MATRIX)
-        ###########################
-        ###########################
-        #previously 
 
-        # D = np.zeros((6, 6))
-
-        # # Angular damping
-        # D[3:, 3:] = np.eye(3) * self.angular_damping
-
-        # # Linear damping
-        # D_linear = np.diag(
-        #     [
-        #         self.linear_principle_damping,
-        #         self.linear_orthogonal_damping,
-        #         self.linear_orthogonal_damping,
-        #     ]
-        # )
-        # E = get_orthogonal_basis(des_lin_vel / lin_norm)
-        # D[:3, :3] = E @ D_linear @ E.T
-        # self.ctrl_dissipative.set_parameter_value("damping", D, sr.ParameterType.MATRIX)
 
     def controller_callback(self) -> None:
         command = CommandMessage()
@@ -265,41 +220,23 @@ class ObsstacleAwarePassiveCont(Node):
         state.ee_state.set_force(np.zeros(3))
         state.ee_state.set_torque(np.zeros(3))
 
-        ######################
-        ######################
-        #computes desired twist
-        pose = state.ee_state.get_pose()
-        # print(dir(state.ee_state))
-        # print(state.ee_state.get_orientation_coefficients())
-        # print(state.ee_state.get_transformation_matrix())
-        # breakpoint()
-        r = R.from_quat(pose[3:]) #pose[3:7] is quaternion
-        ang = r.as_euler(ANGLE_CONV, degrees=False) #zyx                     #what convention ???
-        des_lin_vel = self.sim.dynamic_avoider.evaluate(
-            pose[:3] #xyz
-        )
-        des_ang_vel = self.sim.initial_ang_dynamics.evaluate(
-            ang #euler
-        )
+        #compute des_twist, only for angular (3 last dimension)
+        desired_twist = sr.CartesianTwist(self.ds.evaluate(state.ee_state))
 
-        ### NEED TO BE EULER ANGLES
-        des_twist = np.concatenate((des_lin_vel, des_ang_vel))
+        #get the position of the robot
+        xyz = state.ee_state.get_pose()[:3]
 
-        #traduction for cpp
-        desired_twist = sr.CartesianTwist(
-            state.ee_state.get_name(),
-            des_twist,
-            state.ee_state.get_reference_frame(),
-        )   
-        ######################
-        ######################
+        #compute the real desired linear velocity (with the python DS)
+        des_lin_vel = self.sim.dynamic_avoider.evaluate(xyz)
+
+        #overwritting of the desired linear velocity
+        desired_twist.set_linear_velocity(des_lin_vel)
 
         print("desired lin vel : ", desired_twist.get_linear_velocity())
         print("current lin vel : ", state.ee_state.get_linear_velocity())
         print("desired ang vel : ", desired_twist.get_angular_velocity())
         print("current ang vel : ", state.ee_state.get_angular_velocity())
 
-        #desired_twist = sr.CartesianTwist(self.ds.evaluate(state.ee_state))
         desired_twist.clamp(self.clamp_linear, self.clamp_angular)
 
         # Update Damping-matrix based on desired velocity
@@ -315,7 +252,44 @@ class ObsstacleAwarePassiveCont(Node):
         command.joint_state.set_torques(cmnd_dissipative.get_torques())
         self.robot.send_command(command)
         print("Command sent.")
+        print("heading to : ", self.attractor_position)
 
+        ############################################
+        # feature to alternate between 2 atractors #
+        ############################################
+
+        EPS_PREC = 0.15 #0.1 real val
+        print("norm : ", np.linalg.norm(xyz - self.attractor_position))
+        if np.linalg.norm(xyz - self.attractor_position) < EPS_PREC:  
+            if np.array_equal(self.attractor_position,self.attractor_A):
+                print("Converged to A")
+                self.attractor_position = self.attractor_B
+            else:
+                print("Converged to B")
+                self.attractor_position = self.attractor_A
+            
+            # update cpp DS
+            target = sr.CartesianPose(
+                state.ee_state.get_name(),
+                self.attractor_position,
+                self.attractor_quaternion,
+                state.ee_state.get_reference_frame(),
+            )
+            self.ds.set_parameter_value(
+                "attractor",
+                target,
+                sr.ParameterType.STATE,
+                sr.StateType.CARTESIAN_POSE,
+            )
+
+            #update python DS
+            self.sim.create_lin_DS(
+                self.attractor_position,
+                self.A_lin, 
+                self.max_vel
+            )
+            self.sim.create_mod_avoider()
+            #breakpoint()
 
 if (__name__) == "__main__":
     print("[INFO] Starting Cartesian Damping controller  ...")
@@ -323,7 +297,7 @@ if (__name__) == "__main__":
     robot_interface = RobotInterface("*:1601", "*:1602")
 
     controller = ObsstacleAwarePassiveCont(
-        robot=robot_interface, freq=100, is_simulation=False
+        robot=robot_interface, freq=100, is_simulation=True
     )
 
     try:
