@@ -37,6 +37,19 @@ class Simulated():
         # new
         self.obstacle_environment = OptitrackContainer(use_optitrack=True)
 
+        self.obstacle_environment.append(
+            Cuboid(
+                center_position=np.zeros(3),
+                axes_length=np.array([0.19]*3),
+                linear_velocity=np.zeros(3),
+                margin_absolut= 0.12,
+                distance_scaling=5.,
+            ),
+            obstacle_id=21,
+        )
+        self.obstacle_environment[-1].set_reference_point(
+            np.array([0, 0, -0.09]), in_global_frame=False)
+
         if no_obs:
             return
         for i, (pos, axes, vel) in enumerate(zip(obs_pos, obs_axes_lenght, obs_vel)):
@@ -54,20 +67,24 @@ class Simulated():
             # )
 
             # new
-            self.obstacle_environment.append(
-                Ellipse(
-                    center_position=pos,
-                    axes_length=axes,
-                    linear_velocity=vel,
-                ),
-                obstacle_id=27,
-            )
-        
+            # self.obstacle_environment.append(
+            #     Ellipse(
+            #         center_position=pos,
+            #         axes_length=axes,
+            #         linear_velocity=vel,
+            #     ),
+            #     obstacle_id=21,
+            # )
+            pass
+
+
+
         #FOR SIM
-        self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
+        #self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
         #FOR REAL ROBOT
-        #self.obstacle_environment.visualization_handler = RvizHandler(
-        #    self.obstacle_environment)
+        self.obstacle_environment.visualization_handler = RvizHandler(
+            self.obstacle_environment
+        )
 
         return self.obstacle_environment
 
@@ -87,13 +104,13 @@ class Simulated():
         )
 
 
-    def compute_D(self, x, xdot, x_dot_des):
+    def compute_D(self, x, xdot, x_dot_des, data_handler):
         """
         compute Damping matrix
         """
         EPSILON = 1e-6
         DIM = 3
-        DIST_CRIT = 0.5
+        DIST_CRIT = 8.
 
         #############
         #### Dds ####
@@ -164,7 +181,9 @@ class Simulated():
 
             # weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
             # keep only biggest wight -> closer obstacle
-            weight_i = max(0.0, 1.0 - dist/DIST_CRIT)
+            # weight_i = max(0.0, 1.0 - dist/DIST_CRIT)
+            weight_i = smooth_step_neg(DIST_CRIT * 0.5, DIST_CRIT,  dist)
+            print("dist obstacle", dist, " --- weight", weight_i)
             if weight_i > weight:
                 weight = weight_i
 
@@ -228,6 +247,14 @@ class Simulated():
 
         D_tot = (1-weight)*D_DS + weight*D_obs
         self.D = D_tot
+
+        data_handler["D"].append(D_tot)
+        data_handler["pos"].append(x)
+        data_handler["vel"].append(xdot)
+        data_handler["des_vel"].append(x_dot_des)
+        data_handler["normals"].append(obs_normals_list)
+        data_handler["dists"].append(obs_dist_list)
+
         return D_tot
 
     def compute_D_matrix_wrt_DS(self, x_dot_des):
