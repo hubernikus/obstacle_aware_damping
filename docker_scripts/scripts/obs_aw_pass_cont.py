@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import pandas as pd
 
 import rclpy
 from rclpy.node import Node
@@ -15,6 +16,7 @@ from vartools.linalg import get_orthogonal_basis
 
 # Custom libraries
 from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
+from franka_avoidance.velocity_publisher import VelocityPublisher
 
 # Custom helper librairies
 from librairies.docker_helper import Simulated
@@ -28,11 +30,17 @@ class ObsstacleAwarePassiveCont(Node):
         freq: float = 100.0,
         node_name="velocity_controller",
         is_simulation: bool = True,
+        is_obstacle_aware: bool = True,
+        data_handler = None,
     ) -> None:
         super().__init__(node_name)
         self.robot = robot
         self.rate = self.create_rate(freq)
         period = 1.0 / freq
+
+        self.is_obstacle_aware = is_obstacle_aware
+
+        self.data_handler = data_handler
 
         #ctrl not used
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.COMPLIANT_TWIST)
@@ -47,11 +55,12 @@ class ObsstacleAwarePassiveCont(Node):
 
         else:
             print("Control mode: real")
-            self.linear_principle_damping = 50.0
-            self.linear_obstacle_damping = 60.0
-            self.linear_orthogonal_damping = 20.0
-            self.angular_stiffness = 2.0
-            self.angular_damping = 2.0
+            multiplier = 8. #increase for faster but less stable
+            self.linear_principle_damping = 8*multiplier#50.0
+            self.linear_obstacle_damping = 20*multiplier#60.0
+            self.linear_orthogonal_damping = 2*multiplier#20.0
+            self.angular_stiffness = 0.3*multiplier #2
+            self.angular_damping = 0.3*multiplier    #2
 
         self.ctrl.set_parameter_value(
             "linear_principle_damping",
@@ -85,8 +94,8 @@ class ObsstacleAwarePassiveCont(Node):
         print("First state recieved.")
 
         #redifinned later
-        self.attractor_A = np.array([0.5, -0.3, 0.4])
-        self.attractor_B = np.array([0.5, 0.3, 0.4])
+        self.attractor_A = np.array([0.4, -0.5, 0.25])
+        self.attractor_B = np.array([0.4, 0.5, 0.25])
         self.attractor_position = self.attractor_A
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
 
@@ -114,9 +123,9 @@ class ObsstacleAwarePassiveCont(Node):
 
         # create obstacle env
         no_obs = False  # to disable obstacles
-        obs_position = np.array([[0.5, 0.0, 0.4]])  # these are N x 3
+        obs_position = np.array([[0.4, 0.0, 0.3]])  # these are N x 3
         # for plot need to be all equal -> sphere, its the radius
-        obs_axes_lenght = np.array([[0.10] * 3])
+        obs_axes_lenght = np.array([[0.20] * 3])
         obs_vel = np.array([[0.0] * 3])
         self.obstacle_env = self.sim.create_env(
             obs_position, obs_axes_lenght, obs_vel, no_obs
@@ -136,6 +145,10 @@ class ObsstacleAwarePassiveCont(Node):
 
         #instanciate the controller
         self.create_controller_dissipative()
+
+        robot_frame = "panda_link0"
+        self.modulated_velocity_publisher = VelocityPublisher("modulated", robot_frame)
+        # self.rotated_velocity_publisher = VelocityPublisher("rotated", robot_frame)
 
         self.timer = self.create_timer(period, self.controller_callback)
 
@@ -193,13 +206,26 @@ class ObsstacleAwarePassiveCont(Node):
         
         #extract linear position and velocity from current state
         xyz = ee_state.get_pose()[:3]
+        print("pos", xyz[0], xyz[1], xyz[2])
         lin_vel = ee_state.get_linear_velocity()
 
         #construction of the damping matrix
         D = np.zeros((6, 6))
 
-        #linear compunent are computed with new method
-        D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
+        if self.is_obstacle_aware:
+            #linear compunent are computed with new method
+            D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel, self.data_handler)
+        else:
+            # Linear damping
+            D_linear = np.diag(
+                [
+                self.linear_principle_damping,
+                self.linear_orthogonal_damping,
+                self.linear_orthogonal_damping,
+                ]
+            )
+            E = get_orthogonal_basis(des_lin_vel / np.linalg.norm(des_lin_vel))
+            D[:3, :3] = E @ D_linear @ E.T
 
         #angular component are trivial and isotropic
         D[3:, 3:] = np.eye(3) * self.angular_damping
@@ -229,13 +255,15 @@ class ObsstacleAwarePassiveCont(Node):
         #compute the real desired linear velocity (with the python DS)
         des_lin_vel = self.sim.dynamic_avoider.evaluate(xyz)
 
+        self.modulated_velocity_publisher.publish(xyz, des_lin_vel)
+
         #overwritting of the desired linear velocity
         desired_twist.set_linear_velocity(des_lin_vel)
 
-        print("desired lin vel : ", desired_twist.get_linear_velocity())
-        print("current lin vel : ", state.ee_state.get_linear_velocity())
-        print("desired ang vel : ", desired_twist.get_angular_velocity())
-        print("current ang vel : ", state.ee_state.get_angular_velocity())
+        # print("desired lin vel : ", desired_twist.get_linear_velocity())
+        # print("current lin vel : ", state.ee_state.get_linear_velocity())
+        # print("desired ang vel : ", desired_twist.get_angular_velocity())
+        # print("current ang vel : ", state.ee_state.get_angular_velocity())
 
         desired_twist.clamp(self.clamp_linear, self.clamp_angular)
 
@@ -254,11 +282,17 @@ class ObsstacleAwarePassiveCont(Node):
         print("Command sent.")
         print("heading to : ", self.attractor_position)
 
-        ############################################
+
+        #update obs
+        if self.obstacle_env is not None:
+            self.obstacle_env.update()
+            
+
+        ##############################s##############
         # feature to alternate between 2 atractors #
         ############################################
 
-        EPS_PREC = 0.15 #0.1 real val
+        EPS_PREC = 0.2 #0.1 real val
         print("norm : ", np.linalg.norm(xyz - self.attractor_position))
         if np.linalg.norm(xyz - self.attractor_position) < EPS_PREC:  
             if np.array_equal(self.attractor_position,self.attractor_A):
@@ -291,13 +325,32 @@ class ObsstacleAwarePassiveCont(Node):
             self.sim.create_mod_avoider()
             #breakpoint()
 
+    def destroy_node(self) -> None:
+        df=pd.DataFrame.from_dict(self.data_handler, orient = 'index').transpose()
+        df.to_csv("test.csv")
+        super().destroy_node()
+
 if (__name__) == "__main__":
     print("[INFO] Starting Cartesian Damping controller  ...")
     rclpy.init()
     robot_interface = RobotInterface("*:1601", "*:1602")
 
+    data_handler = {
+        "D":[],
+        "pos":[],
+        "vel":[],
+        "des_vel":[],
+        "normals":[],
+        "dists":[]
+    }
+
     controller = ObsstacleAwarePassiveCont(
-        robot=robot_interface, freq=100, is_simulation=True
+        robot=robot_interface, 
+        freq=100, 
+        is_simulation=False,
+        is_obstacle_aware=True,
+        # is_obstacle_aware=False,
+        data_handler = data_handler,
     )
 
     try:
