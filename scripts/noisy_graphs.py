@@ -21,10 +21,15 @@ import librairies.magic_numbers_and_enums as mn
 #just for plotting : global var, remoove when no bug
 from librairies.robot_animation import s_list
 
-def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
+def run_control_robot(noise_pos = 0.0, noise_vel = 0.0, is_obs_aw = True):
 
     mn.NOISE_STD_POS = noise_pos
     mn.NOISE_STD_VEL = noise_vel
+
+    if is_obs_aw:
+        type_of_contr = TypeD.BOTH
+    else:
+        type_of_contr = TypeD.DS_FOLLOWING
 
     dt_simulation = 0.01 #attention bug when too small (bc plt takes too much time :( ))
 
@@ -53,8 +58,8 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     obstacle_environment.append(
         Cuboid(
-            axes_length=[0.4, 1.8],
-            center_position=np.array([-0.5, -0.5]),
+            axes_length=[0.4, 3.8],
+            center_position=np.array([-0.5, -1.5]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -66,8 +71,8 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     obstacle_environment.append(
         Cuboid(
-            axes_length=[0.4, 1.8],
-            center_position=np.array([0.8, 0.8]),
+            axes_length=[0.4, 3.8],
+            center_position=np.array([0.8, 1.8]),
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.15,
             # orientation=10 * pi / 180,
@@ -107,7 +112,7 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
             lambda_DS=lambda_DS,
             lambda_perp=lambda_perp,
             lambda_obs = lambda_obs,
-            type_of_D_matrix = TypeD.BOTH, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
+            type_of_D_matrix = type_of_contr, # TypeD.DS_FOLLOWING or TypeD.OBS_PASSIVITY or TypeD.BOTH
             approach = Approach.ORTHO_BASIS,
             with_E_storage = False
         ),
@@ -115,7 +120,7 @@ def run_control_robot(noise_pos = 0.0, noise_vel = 0.0):
 
     #setup of animator
     my_animation = CotrolledRobotAnimation(
-        it_max = 300, #longer animation
+        it_max = 200, #longer animation
         dt_simulation = dt_simulation,
         dt_sleep = dt_simulation,
     )
@@ -139,40 +144,86 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    n = 8 #11
-    epochs = 10 #10
-    d_min_tab = np.zeros((n,epochs))
+    n = 8 #8
+    epochs = 8 #10
+    d_min_tab_obs_aw = np.zeros((n,epochs))
+    d_min_tab_kronan = np.zeros((n,epochs))
 
     noise_level = np.linspace(0.0,7.0,n) #for velocity
     #noise_level = np.linspace(0.0,0.7,n) #for position
 
-    d_min_tab[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0)
+    d_min_tab_obs_aw[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0, is_obs_aw = True)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)
         for e in range(epochs):
             print("epoch :", e, "noise std : ", noise)
-            d_min_tab[i,e] = run_control_robot(noise_pos=0.0, noise_vel=noise)
+            dis_obs = run_control_robot(noise_pos=0.0, noise_vel=noise, is_obs_aw = True)
+            #dis_obs = dis_obs if dis_obs>0 else 0
+            d_min_tab_obs_aw[i,e] = dis_obs
+            plt.close("all")
+            dist_kro = run_control_robot(noise_pos=0.0, noise_vel=noise, is_obs_aw = False)
+            #dist_kro = dist_kro if dist_kro>0 else 0
+            d_min_tab_kronan[i,e] = dist_kro
             plt.close("all")
             if i==0:
-                d_min_tab[0,:] = d_min_tab[0,0]
+                d_min_tab_obs_aw[0,:] = d_min_tab_obs_aw[0,0]
+                d_min_tab_kronan[0,:] = d_min_tab_kronan[0,0]
                 break
-
-    mean = d_min_tab.mean(axis=1)
-    std = d_min_tab.std(axis=1)
+    
+    mean_obs = d_min_tab_obs_aw.mean(axis=1)
+    std_obs = d_min_tab_obs_aw.std(axis=1)
+    mean_kro = d_min_tab_kronan.mean(axis=1)
+    std_kro = d_min_tab_kronan.std(axis=1)
 
     fig = plt.figure()
     #plt.errorbar(noise_level, mean, yerr=std)
-    plt.fill_between(noise_level, mean+std, mean-std, alpha = 0.3)
-    plt.plot(noise_level, mean)
+    #obstacle aware plot
+    plt.fill_between(noise_level, mean_obs+std_obs, mean_obs-std_obs, alpha = 0.3, color = 'b')
+    plt.plot(noise_level, mean_obs, color = 'b', label = "Obstacle aware passive control")
+    #original kronander plot
+    plt.fill_between(noise_level, mean_kro+std_kro, mean_kro-std_kro, alpha = 0.3, color = 'r')
+    plt.plot(noise_level, mean_kro, color = 'r', label = "Traditional passive control")
     plt.axhline(y = 0.0, color = 'k', linestyle = '-')
     #plt.plot(noise_level, np.zeros_like(noise_level), "k")
     plt.title(f"Effect of velocity measurement noise over {epochs} epochs")
     plt.ylabel("Closest distance to obstacle during simulation [m]")
     plt.xlabel("Standard deviation of velocity measurement noise [m/s]")
+    plt.legend(loc="upper right")
     fig.show()
     plt.show()
     plt.savefig('vel_noise.png')
+
+
+    #with clip ar 0
+    d_min_tab_obs_aw[d_min_tab_obs_aw <= 0] = 0.
+    d_min_tab_kronan[d_min_tab_kronan <= 0] = 0.
+    mean_obs = d_min_tab_obs_aw.mean(axis=1)
+    std_obs = d_min_tab_obs_aw.std(axis=1)
+    mean_kro = d_min_tab_kronan.mean(axis=1)
+    std_kro = d_min_tab_kronan.std(axis=1)
+
+    fig2 = plt.figure()
+    #plt.errorbar(noise_level, mean, yerr=std)
+    #obstacle aware plot
+    plt.fill_between(noise_level, mean_obs+std_obs, mean_obs-std_obs, alpha = 0.3, color = 'b')
+    plt.plot(noise_level, mean_obs, color = 'b', label = "Obstacle aware passive control")
+    #original kronander plot
+    plt.fill_between(noise_level, mean_kro+std_kro, mean_kro-std_kro, alpha = 0.3, color = 'r')
+    plt.plot(noise_level, mean_kro, color = 'r', label = "Traditional passive control")
+    plt.axhline(y = 0.0, color = 'k', linestyle = '-')
+    #plt.plot(noise_level, np.zeros_like(noise_level), "k")
+    plt.title(f"Effect of velocity measurement noise over {epochs} epochs")
+    plt.ylabel("Closest distance to obstacle during simulation [m]")
+    plt.xlabel("Standard deviation of velocity measurement noise [m/s]")
+    plt.legend(loc="upper right")
+    fig2.show()
+    plt.show()
+    plt.savefig('vel_noise_cliped.png')
+    
+    
+    
+    
     plt.pause(100)
     pass
 

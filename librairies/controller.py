@@ -576,7 +576,8 @@ class TrackingController(Controller):
                 return self.D
 
             #weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            #weight_i = max(0.0, 1.0 - dist/mn.DIST_CRIT)
+            weight_i = smooth_step_neg(mn.DIST_CRIT * 0.5, mn.DIST_CRIT,  dist)
             if weight_i > weight:
                 weight = weight_i
 
