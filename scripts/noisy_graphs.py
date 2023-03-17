@@ -145,23 +145,25 @@ if (__name__) == "__main__":
     plt.ion()
 
     n = 8 #8
-    epochs = 8 #10
+    epochs = 8 #8
     d_min_tab_obs_aw = np.zeros((n,epochs))
     d_min_tab_kronan = np.zeros((n,epochs))
 
     noise_level = np.linspace(0.0,7.0,n) #for velocity
     #noise_level = np.linspace(0.0,0.7,n) #for position
 
-    d_min_tab_obs_aw[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0, is_obs_aw = True)
+    #d_min_tab_obs_aw[0,0] = run_control_robot(noise_pos=0.0, noise_vel=4.0, is_obs_aw = True)
 
     for i, noise in enumerate(noise_level):
         print("noise :", noise)
         for e in range(epochs):
             print("epoch :", e, "noise std : ", noise)
+            print("aware")
             dis_obs = run_control_robot(noise_pos=0.0, noise_vel=noise, is_obs_aw = True)
             #dis_obs = dis_obs if dis_obs>0 else 0
             d_min_tab_obs_aw[i,e] = dis_obs
             plt.close("all")
+            print("kronan")
             dist_kro = run_control_robot(noise_pos=0.0, noise_vel=noise, is_obs_aw = False)
             #dist_kro = dist_kro if dist_kro>0 else 0
             d_min_tab_kronan[i,e] = dist_kro
@@ -171,6 +173,9 @@ if (__name__) == "__main__":
                 d_min_tab_kronan[0,:] = d_min_tab_kronan[0,0]
                 break
     
+    np.save("noisy_file\d_min_tab_obs_aw.npy", d_min_tab_obs_aw)
+    np.save("noisy_file\d_min_tab_kronan.npy", d_min_tab_kronan)  
+
     mean_obs = d_min_tab_obs_aw.mean(axis=1)
     std_obs = d_min_tab_obs_aw.std(axis=1)
     mean_kro = d_min_tab_kronan.mean(axis=1)
@@ -186,10 +191,10 @@ if (__name__) == "__main__":
     plt.plot(noise_level, mean_kro, color = 'r', label = "Traditional passive control")
     plt.axhline(y = 0.0, color = 'k', linestyle = '-')
     #plt.plot(noise_level, np.zeros_like(noise_level), "k")
-    plt.title(f"Effect of velocity measurement noise over {epochs} epochs")
+    #plt.title(f"Effect of velocity measurement noise over {epochs} epochs")
     plt.ylabel("Closest distance to obstacle during simulation [m]")
     plt.xlabel("Standard deviation of velocity measurement noise [m/s]")
-    plt.legend(loc="upper right")
+    plt.legend(loc="upper right", prop={'size': 12})
     fig.show()
     plt.show()
     plt.savefig('vel_noise.png')

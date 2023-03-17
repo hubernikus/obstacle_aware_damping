@@ -8,5 +8,6 @@ def vizualize(df):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("test.csv")
-    vizualize(df)
+    df = pd.read_csv("data_robot/test_hit_from_top_damping.csv")
+    #vizualize(df)
+    
