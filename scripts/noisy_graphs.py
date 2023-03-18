@@ -173,8 +173,8 @@ if (__name__) == "__main__":
                 d_min_tab_kronan[0,:] = d_min_tab_kronan[0,0]
                 break
     
-    np.save("noisy_file\d_min_tab_obs_aw.npy", d_min_tab_obs_aw)
-    np.save("noisy_file\d_min_tab_kronan.npy", d_min_tab_kronan)  
+    np.save("noisy_file\d_min_tab_obs_aw_temp.npy", d_min_tab_obs_aw)
+    np.save("noisy_file\d_min_tab_kronan_temp.npy", d_min_tab_kronan)  
 
     mean_obs = d_min_tab_obs_aw.mean(axis=1)
     std_obs = d_min_tab_obs_aw.std(axis=1)
