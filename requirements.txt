@@ -1,0 +1,10 @@
+numpy
+matplotlib
+
+# For better interface
+ipython
+
+# Debugging / TypeHint
+flake8
+black
+
