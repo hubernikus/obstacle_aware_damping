@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from librairies.controller import smooth_step, smooth_step_neg
+from passive_control.controller import smooth_step, smooth_step_neg
 
 # x = np.linspace(0.95,1,1000)
 

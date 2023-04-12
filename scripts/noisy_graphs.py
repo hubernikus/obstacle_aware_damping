@@ -10,16 +10,16 @@ from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
 
 #from my librairies
-from librairies.robot import Robot
-from librairies.controller import RegulationController, TrackingController
-from librairies.robot_animation import CotrolledRobotAnimation
+from passive_control.robot import Robot
+from passive_control.controller import RegulationController, TrackingController
+from passive_control.robot_animation import CotrolledRobotAnimation
 
-from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
-from librairies.magic_numbers_and_enums import Approach
-import librairies.magic_numbers_and_enums as mn
+from passive_control.magic_numbers_and_enums import TypeOfDMatrix as TypeD
+from passive_control.magic_numbers_and_enums import Approach
+import passive_control.magic_numbers_and_enums as mn
 
 #just for plotting : global var, remoove when no bug
-from librairies.robot_animation import s_list
+from passive_control.robot_animation import s_list
 
 def run_control_robot(noise_pos = 0.0, noise_vel = 0.0, is_obs_aw = True):
 

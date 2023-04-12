@@ -37,7 +37,7 @@ from dynamic_obstacle_avoidance.avoidance import obs_avoidance_rk4
 
 plt.ion()
 
-import librairies.magic_numbers_and_enums as mn
+import passive_control.magic_numbers_and_enums as mn
 
 
 def plot_obstacles(

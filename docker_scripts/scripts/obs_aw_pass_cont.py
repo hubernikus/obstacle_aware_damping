@@ -14,12 +14,12 @@ from network_interfaces.zmq.network import CommandMessage
 
 from vartools.linalg import get_orthogonal_basis
 
-# Custom libraries
+# Custom passive_control.
 from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
 from franka_avoidance.velocity_publisher import VelocityPublisher
 
-# Custom helper librairies
-from librairies.docker_helper import Simulated
+# Custom helper passive_control.
+from passive_control.docker_helper import Simulated
 
 ANGLE_CONV = 'zyx'
 

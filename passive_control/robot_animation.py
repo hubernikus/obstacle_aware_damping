@@ -6,16 +6,16 @@ import os
 import matplotlib.image as mpimg
 from scipy import ndimage
 
-#librairies of lukas
+#passive_control.of lukas
 from vartools.animator import Animator
 
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
 #from dynamic_obstacle_avoidance.visualization import plot_obstacles #overwritten in draw_obs_overwrite
 
-#my librairies
-from librairies.robot import Robot
-import librairies.magic_numbers_and_enums as mn
-from librairies.draw_obs_overwrite import plot_obstacles
+#my passive_control.
+from passive_control.robot import Robot
+import passive_control.magic_numbers_and_enums as mn
+from passive_control.draw_obs_overwrite import plot_obstacles
 
 #just for plotting : global
 s_list = []

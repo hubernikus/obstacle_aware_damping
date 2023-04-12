@@ -13,7 +13,7 @@ from network_interfaces.zmq.network import CommandMessage
 
 from vartools.linalg import get_orthogonal_basis
 
-# Custom libraries
+# Custom passive_control.
 from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
 
 

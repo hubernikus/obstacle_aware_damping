@@ -1,9 +1,9 @@
 import numpy as np
 from time import time
 
-#my librairies
-from librairies.controller import TrackingController
-import librairies.magic_numbers_and_enums as mn
+#my passive_control.
+from passive_control.controller import TrackingController
+import passive_control.magic_numbers_and_enums as mn
 
 class Robot:
     """

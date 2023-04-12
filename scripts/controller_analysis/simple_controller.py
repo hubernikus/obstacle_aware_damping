@@ -3,6 +3,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+# import vartools
+
 dimension = 1
 
 
@@ -69,3 +71,4 @@ if (__name__) == "__main__":
     plt.ion()
     plt.close("all")
     main()
+    # breakpoint()

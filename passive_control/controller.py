@@ -3,14 +3,14 @@ from abc import ABC, abstractmethod
 import time
 import warnings
 
-#librairies of lukas
+#passive_control.of lukas
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
 from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
-#my librairies
-from librairies.magic_numbers_and_enums import TypeOfDMatrix as TypeD
-from librairies.magic_numbers_and_enums import Approach
-import librairies.magic_numbers_and_enums as mn
+#my passive_control.
+from passive_control.magic_numbers_and_enums import TypeOfDMatrix as TypeD
+from passive_control.magic_numbers_and_enums import Approach
+import passive_control.magic_numbers_and_enums as mn
 
 
 class Controller(ABC):

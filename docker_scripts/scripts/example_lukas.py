@@ -12,7 +12,7 @@ from dynamical_systems import create_cartesian_ds, DYNAMICAL_SYSTEM_TYPE
 from network_interfaces.control_type import ControlType
 from network_interfaces.zmq.network import CommandMessage
 
-# Custom libraries
+# Custom passive_control.
 from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
 
 

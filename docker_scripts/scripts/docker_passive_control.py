@@ -14,12 +14,12 @@ from network_interfaces.zmq.network import CommandMessage
 
 from scipy.spatial.transform import Rotation as R
 
-# Custom libraries lukas
+# Custom passive_control.lukas
 from franka_avoidance.robot_interface import RobotZmqInterface as RobotInterface
 from dynamic_obstacle_avoidance.avoidance.base_avoider import BaseAvoider
 
-# My custom librairies
-from librairies.docker_helper import Simulated
+# My custom passive_control.
+from passive_control.docker_helper import Simulated
 
 
 class PassiveObsController(Node):

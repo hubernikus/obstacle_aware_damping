@@ -1,3 +1,5 @@
+# Base requirements
+wheel # Needed to install dependencies without project.toml-file
 numpy
 matplotlib
 
