@@ -24,7 +24,7 @@ pip install -e .
 ```
 
 ### Install the required passive_control.
-
+TODO: these installs need to be fixed (!)
 Mathematical tools (vartools)
 ``` bash
 pip install git+https://github.com/hubernikus/various_tools.git@main

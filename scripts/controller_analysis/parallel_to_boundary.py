@@ -4,26 +4,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # import vartools
-from dynamic_obstacle_avoidance.visualization import (
-    plot_obstacles,
-)
-from dynamic_obstacle_avoidance.visualization.plot_obstacle_dynamics import (
-    plot_obstacle_dynamics,
-)
+
+dimension = 1
 
 
-dimension: int = 2
-
-
-class ParallelToBoundaryDS:
-    dimension: int = 2
-    def evaluate(self, position: np.ndarray) -> np.ndarray:
-        return np.zeros(self.dimension)
+class SimpleDS:
+    def evaluate(self, position):
+        return 0
 
 
 @dataclass
 class SimpleController:
-    D: float = 1.0
+    D: float = 100.0
 
     def compute_force(self, velocity, desired_velocity):
         return self.D * (desired_velocity - velocity)
