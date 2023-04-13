@@ -63,9 +63,8 @@ def plot_obstacles(
     x_range=None,
     y_range=None,
     obs=None,
-
-    absciss = 0,                            #added
-    ordinate = 1,                           #added
+    absciss=0,  # added
+    ordinate=1,  # added
 ):
     """Plot all obstacles & attractors"""
     if x_range is not None:
@@ -106,9 +105,9 @@ def plot_obstacles(
             depth = 2
         elif absciss == 2 and ordinate == 1:
             depth = 0
-        
-        #added by thibaud to handle 3D: HUGLY PATCH - WORKS
-        #we swap all coord since implemented function only handles xy
+
+        # added by thibaud to handle 3D: HUGLY PATCH - WORKS
+        # we swap all coord since implemented function only handles xy
         # if mn.DIM == 3:
         #     obs.axes_length[[0,1,2]] = obs.axes_length[[absciss, ordinate, depth]]
         #     obs.axes_with_margin[[0,1,2]] = obs.axes_with_margin[[absciss, ordinate, depth]]
@@ -243,8 +242,8 @@ def plot_obstacles(
                 zorder=3,
             )
 
-        #back to normal 
-        #added by thibaud to handle 3D:
+        # back to normal
+        # added by thibaud to handle 3D:
         # if mn.DIM == 3:
         #     obs.axes_length[[absciss, ordinate, depth]] = obs.axes_length[[0,1,2]]
         #     obs.axes_with_margin[[absciss, ordinate, depth]] = obs.axes_with_margin[[0,1,2]]

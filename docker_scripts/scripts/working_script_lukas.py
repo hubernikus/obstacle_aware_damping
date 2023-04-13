@@ -182,7 +182,6 @@ class CartesianSpaceController(Node):
         print("desired ang vel : ", desired_twist.get_angular_velocity())
         print("current ang vel : ", state.ee_state.get_angular_velocity())
 
-
         # Update Damping-matrix based on desired velocity
         self.update_dissipative_controller(desired_twist)
 

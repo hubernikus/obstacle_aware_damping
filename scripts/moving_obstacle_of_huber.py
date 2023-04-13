@@ -1,5 +1,5 @@
 """ Example Obstacle Avoidance """
-#test
+# test
 # Author: LukasHuber
 # Email: lukas.huber@epfl.ch
 # Created:  2021-09-23

@@ -27,7 +27,9 @@ class TwistController(Node):
 
         self.ds = create_cartesian_ds(DYNAMICAL_SYSTEM_TYPE.POINT_ATTRACTOR)
         self.ds.set_parameter_value(
-            "gain", [50.0, 50.0, 50.0, 10.0, 10.0, 10.0], sr.ParameterType.DOUBLE_ARRAY #of the A matrix
+            "gain",
+            [50.0, 50.0, 50.0, 10.0, 10.0, 10.0],
+            sr.ParameterType.DOUBLE_ARRAY,  # of the A matrix
         )
 
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.COMPLIANT_TWIST)
@@ -50,7 +52,7 @@ class TwistController(Node):
                 continue
             else:
                 if print_once:
-                    #print(dir(state.ee_state))
+                    # print(dir(state.ee_state))
                     print("######## state ########")
                     print("position :", state.ee_state.get_position())
                     print("name :", state.ee_state.get_name())
@@ -59,13 +61,13 @@ class TwistController(Node):
                     print("######## ds ########")
                     print(self.ds.get_parameters())
                     print(dir(self.ds))
-                    #print("attractor : ", self.ds.attractor)
+                    # print("attractor : ", self.ds.attractor)
                     print_once = False
             if not target_set:
                 target = sr.CartesianPose(
                     state.ee_state.get_name(),
-                    np.array([0.3, 0.4, 0.5]), #xyz
-                    np.array([0.0, 1.0, 0.0, 0.0]), #prob quaternion orientation
+                    np.array([0.3, 0.4, 0.5]),  # xyz
+                    np.array([0.0, 1.0, 0.0, 0.0]),  # prob quaternion orientation
                     state.ee_state.get_reference_frame(),
                 )
                 self.ds.set_parameter_value(

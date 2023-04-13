@@ -1,22 +1,21 @@
-
 import matplotlib.pyplot as plt
 
 import numpy as np
 from math import pi
 
-#from librairy of lukas : dynamic_obstacle_avoidance
+# from librairy of lukas : dynamic_obstacle_avoidance
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
 from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
 from dynamic_obstacle_avoidance.visualization import plot_obstacles
 
-#from librairy of lukas : vartools
+# from librairy of lukas : vartools
 from vartools.dynamical_systems import LinearSystem
 from vartools.animator import Animator
 
 
 class DynamicalSystemAnimation(Animator):
-    #class variable
+    # class variable
     dim = 2
 
     def setup(
@@ -42,12 +41,12 @@ class DynamicalSystemAnimation(Animator):
         self.position_list[:, 0] = start_position
 
         self.fig, self.ax = plt.subplots(figsize=(10, 8))
-    
+
     def update_step(self, ii: int) -> None:
         print(f"iter : {ii}")
 
-        #CALCULATION
-        #ici diférent de lukas : moi ii et ii + 1 (lui ii -1 et ii)
+        # CALCULATION
+        # ici diférent de lukas : moi ii et ii + 1 (lui ii -1 et ii)
 
         velocity = self.dynamic_avoider.evaluate(self.position_list[:, ii])
         self.position_list[:, ii + 1] = (
@@ -57,15 +56,15 @@ class DynamicalSystemAnimation(Animator):
         # Update obstacles
         self.obstacle_environment.do_velocity_step(delta_time=self.dt_simulation)
 
-        #CLEARING
+        # CLEARING
         self.ax.clear()
 
-        #PLOTTING
-        #past trajectory
+        # PLOTTING
+        # past trajectory
         self.ax.plot(
             self.position_list[0, :ii], self.position_list[1, :ii], ":", color="#135e08"
         )
-        #actual position
+        # actual position
         self.ax.plot(
             self.position_list[0, ii],
             self.position_list[1, ii],
@@ -76,7 +75,7 @@ class DynamicalSystemAnimation(Animator):
         self.ax.set_xlim(self.x_lim)
         self.ax.set_ylim(self.y_lim)
 
-        #atractor position
+        # atractor position
         self.ax.plot(
             self.initial_dynamics.attractor_position[0],
             self.initial_dynamics.attractor_position[1],
@@ -84,7 +83,7 @@ class DynamicalSystemAnimation(Animator):
             markersize=8,
         )
 
-        #obstacles positions
+        # obstacles positions
         plot_obstacles(
             ax=self.ax,
             obstacle_container=self.obstacle_environment,
@@ -100,9 +99,9 @@ class DynamicalSystemAnimation(Animator):
 
 
 def run_obs_avoidance():
-    #setup of environment
+    # setup of environment
     obstacle_environment = ObstacleContainer()
-    
+
     obstacle_environment.append(
         Cuboid(
             axes_length=[0.4, 1.3],
@@ -110,7 +109,7 @@ def run_obs_avoidance():
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.2,
             # orientation=10 * pi / 180,
-            linear_velocity = np.array([-1.0, 0.0]),
+            linear_velocity=np.array([-1.0, 0.0]),
             tail_effect=False,
             # repulsion_coeff=1.4,
         )
@@ -122,21 +121,20 @@ def run_obs_avoidance():
             # center_position=np.array([0.9, 0.25]),
             margin_absolut=0.2,
             # orientation=10 * pi / 180,
-            linear_velocity = np.array([0.0, 1.0]),
+            linear_velocity=np.array([0.0, 1.0]),
             tail_effect=False,
             # repulsion_coeff=1.4,
         )
     )
-    
 
-    #setup of dynamics
+    # setup of dynamics
     initial_dynamics = LinearSystem(
         attractor_position=np.array([2.0, 0.0]),
         maximum_velocity=2,
         distance_decrease=0.3,
     )
 
-    #setup of animator
+    # setup of animator
     my_animation = DynamicalSystemAnimation(
         dt_simulation=0.05,
         dt_sleep=0.01,
@@ -157,4 +155,3 @@ if (__name__) == "__main__":
     plt.ion()
 
     run_obs_avoidance()
-

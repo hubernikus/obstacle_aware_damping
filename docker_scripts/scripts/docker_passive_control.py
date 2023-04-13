@@ -33,12 +33,9 @@ class PassiveObsController(Node):
 
         # initialize controller : Fcomannd = I*x_dd + D*x_d + K*x
         self.ctrl = create_cartesian_controller(CONTROLLER_TYPE.IMPEDANCE)
-        self.ctrl.set_parameter_value(
-            "damping", np.eye(6), sr.ParameterType.MATRIX)
-        self.ctrl.set_parameter_value(
-            "stiffness", np.eye(6), sr.ParameterType.MATRIX)
-        self.ctrl.set_parameter_value(
-            "inertia", np.eye(6), sr.ParameterType.MATRIX)
+        self.ctrl.set_parameter_value("damping", np.eye(6), sr.ParameterType.MATRIX)
+        self.ctrl.set_parameter_value("stiffness", np.eye(6), sr.ParameterType.MATRIX)
+        self.ctrl.set_parameter_value("inertia", np.eye(6), sr.ParameterType.MATRIX)
 
         # usefull to print
         # print("methods : ", dir(self.ctrl))
@@ -58,7 +55,8 @@ class PassiveObsController(Node):
         obs_vel = np.array([[0.0] * 3])
         no_obs = True  # to disable obstacles
         self.obstacle_env = self.sim.create_env(
-            obs_position, obs_axes_lenght, obs_vel, no_obs)
+            obs_position, obs_axes_lenght, obs_vel, no_obs
+        )
 
         # create the DS, NOT FORGET minus !!! (!= cpp )
         self.A_matrix = -np.diag([1.0, 1.0, 1.0])
@@ -67,8 +65,7 @@ class PassiveObsController(Node):
         self.attractor_position = self.attractor_A
         self.attrator_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
         self.max_vel = 0.2
-        self.sim.create_lin_DS(self.attractor_position,
-                                self.A_matrix, self.max_vel)
+        self.sim.create_lin_DS(self.attractor_position, self.A_matrix, self.max_vel)
 
         # create modulation avoider to modulate final DS
         self.sim.create_mod_avoider()
@@ -129,8 +126,16 @@ class PassiveObsController(Node):
                 # if max_pos_des > 0.1:
                 #     pos_dot_des = pos_dot_des/max_pos_des
 
-                print("actual position : ", pos, " and ang : ",
-                      x[3:7], " actual vel : ", pos_dot, " des_vel by avoider", pos_dot_des)
+                print(
+                    "actual position : ",
+                    pos,
+                    " and ang : ",
+                    x[3:7],
+                    " actual vel : ",
+                    pos_dot,
+                    " des_vel by avoider",
+                    pos_dot_des,
+                )
 
                 # 2. compute the damping matrix and gains
 
@@ -139,19 +144,19 @@ class PassiveObsController(Node):
                 big_D = np.zeros((6, 6))
                 big_D[0:3, 0:3] = D
                 big_D[3:6, 3:6] = KD_ang
-                print('D ', big_D)
+                print("D ", big_D)
 
                 # 3. build the K matrix
                 big_K = np.zeros((6, 6))
                 KP_ang = np.diag([5.0] * 3)  # 5
                 big_K[3:6, 3:6] = KP_ang
-                print('K ', big_K)
+                print("K ", big_K)
 
                 # 3. assign them to the robot
+                self.ctrl.set_parameter_value("damping", big_D, sr.ParameterType.MATRIX)
                 self.ctrl.set_parameter_value(
-                    "damping", big_D, sr.ParameterType.MATRIX)
-                self.ctrl.set_parameter_value(
-                    "stiffness", big_K, sr.ParameterType.MATRIX)
+                    "stiffness", big_K, sr.ParameterType.MATRIX
+                )
 
                 # print("## PARAMS CTRL NEW ## : ", self.ctrl.get_parameters())
 
@@ -160,15 +165,17 @@ class PassiveObsController(Node):
                     state.ee_state.get_name(),
                     state.ee_state.get_reference_frame(),
                 )
-                des_ee_state.set_pose(np.concatenate(
-                    (np.zeros(3), self.attrator_quaternion)))  # vector 7x1
+                des_ee_state.set_pose(
+                    np.concatenate((np.zeros(3), self.attrator_quaternion))
+                )  # vector 7x1
                 des_ee_state.set_linear_velocity(pos_dot_des)
                 des_ee_state.set_angular_velocity(np.zeros(3))
 
                 # 5. compute the command with the impedance controller
                 self.command_torques = sr.JointTorques(
                     self.ctrl.compute_command(
-                        des_ee_state, state.ee_state, state.jacobian)
+                        des_ee_state, state.ee_state, state.jacobian
+                    )
                 )
                 # print("\n com. torque :", self.command_torques.get_torques())
 
@@ -177,13 +184,16 @@ class PassiveObsController(Node):
 
                 max_torque = max(abs(self.command_torques.get_torques()))
                 if max_torque > 15:
-                    print("torques were limited (>1)",
-                          self.command_torques.get_torques())
+                    print(
+                        "torques were limited (>1)", self.command_torques.get_torques()
+                    )
                     self.command.joint_state.set_torques(
-                        self.command_torques.get_torques()/max_torque)
+                        self.command_torques.get_torques() / max_torque
+                    )
                 else:
                     self.command.joint_state.set_torques(
-                        self.command_torques.get_torques())
+                        self.command_torques.get_torques()
+                    )
 
                 # self.command_torques.get_torques()
                 # breakpoint()
@@ -194,8 +204,8 @@ class PassiveObsController(Node):
                 # 7. draw obs
                 if self.obstacle_env is not None:
                     # self.obstacle_env.update_obstacles()
-                    #self.obstacle_env.update()
-                    print('opti ok')
+                    # self.obstacle_env.update()
+                    print("opti ok")
 
                 # 8. switch atractor if converged
                 EPS = 1e-1
@@ -217,7 +227,8 @@ class PassiveObsController(Node):
 
                     # update the DS
                     self.sim.create_lin_DS(
-                        self.attractor_position, self.A_matrix, self.max_vel)
+                        self.attractor_position, self.A_matrix, self.max_vel
+                    )
 
                     # update the modulation avoider to modulate final DS
                     self.sim.create_mod_avoider()
@@ -246,8 +257,7 @@ if __name__ == "__main__":
     # Spin in a separate thread
     controller = PassiveObsController(robot=robot_interface, freq=500)
 
-    thread = threading.Thread(
-        target=rclpy.spin, args=(controller,), daemon=True)
+    thread = threading.Thread(target=rclpy.spin, args=(controller,), daemon=True)
     thread.start()
 
     try:

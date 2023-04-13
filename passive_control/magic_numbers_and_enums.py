@@ -5,38 +5,42 @@ import numpy as np
 ## MAGIC NUMBERS ##
 ###################
 
-#controller
-LAMBDA_MAX = 200.0 #max value of lambda, complicance in chosen direction
+# controller
+LAMBDA_MAX = 200.0  # max value of lambda, complicance in chosen direction
 
-DIST_CRIT = 0.8 #dist when we stop considering obstacles
-D_SCAL = 1 #from lukas theory
+DIST_CRIT = 0.8  # dist when we stop considering obstacles
+D_SCAL = 1  # from lukas theory
 
-EPS_CONVERGENCE = 0.02 #zone around atractor to improve stability
+EPS_CONVERGENCE = 0.02  # zone around atractor to improve stability
 
-MAX_TAU_C = 500.0 #max possible torque #500 works well, 100 also, but less damped against obs
+MAX_TAU_C = (
+    500.0  # max possible torque #500 works well, 100 also, but less damped against obs
+)
 
-NOISE_STD_POS = 0.5 #0.5 still good
-NOISE_STD_VEL = 0.0 #1 still good
+NOISE_STD_POS = 0.5  # 0.5 still good
+NOISE_STD_VEL = 0.0  # 1 still good
 
-#tank system
+# tank system
 S_MAX = 100.0
-DELTA_S = 0.1*S_MAX #smoothness parameter
-DELTA_Z = 0.01      #smoothness parameter
+DELTA_S = 0.1 * S_MAX  # smoothness parameter
+DELTA_Z = 0.01  # smoothness parameter
 
-#display
+# display
 QOLO_LENGHT_X = 0.4
 
-#EVERYTHING
+# EVERYTHING
 EPSILON = 1e-6
 
 ##################
 ## ENUM CLASSES ##
 ##################
 
+
 class TypeOfDMatrix(Enum):
     DS_FOLLOWING = auto()
     OBS_PASSIVITY = auto()
     BOTH = auto()
+
 
 class Approach(Enum):
     ORTHO_BASIS = auto()
