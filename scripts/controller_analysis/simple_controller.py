@@ -4,19 +4,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # import vartools
-from dynamic_obstacle_avoidance.visualization import (
-    plot_obstacles,
-)
-from dynamic_obstacle_avoidance.visualization.plot_obstacle_dynamics import (
-    plot_obstacle_dynamics,
-)
-
 
 dimension: int = 2
 
 
 class ParallelToBoundaryDS:
     dimension: int = 2
+
     def evaluate(self, position: np.ndarray) -> np.ndarray:
         return np.zeros(self.dimension)
 
@@ -73,7 +67,6 @@ def main():
 
     plt.plot(dt * np.arange(it_max + 1), positions[0, :])
     # plt.ylim([-5, 5])
-
 
 
 if (__name__) == "__main__":
