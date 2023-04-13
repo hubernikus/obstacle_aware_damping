@@ -23,7 +23,7 @@ class ParallelToBoundaryDS:
     dimension = 2
 
     def evaluate(self, position: np.ndarray) -> np.ndarray:
-        return np.array([1.0, 0.0])
+        return np.array([3.0, 0.0])
 
 
 @dataclass
@@ -31,10 +31,14 @@ class SimpleController:
     s_obs: float = 10.0
     s_ds: float = 1.0
 
-    D: np.ndarray = field(default_factory=lambda: np.zeros(dimension))
+    # D: np.ndarray = field(default_factory=lambda: np.zeros(dimension))
 
-    def __post_init__(self):
-        self.D = np.diag([self.s_ds, self.s_obs])
+    # def __post_init__(self):
+    #     self._D = np.diag([self.s_ds, self.s_obs])
+
+    @property
+    def D(self) -> np.ndarray:
+        return np.diag([self.s_ds, self.s_obs])
 
     def compute_force(self, velocity, desired_velocity):
         return self.D @ (desired_velocity - velocity)
@@ -60,43 +64,114 @@ class Agent:
         self.position = self.position + dt * self.velocity
 
 
-def main():
-    x_lim = [-0.1, 2.0]
+def main(save_figure=False):
+    x_lim = [-0.2, 2.1]
     y_lim = [-0.1, 1.1]
 
     dynamics = ParallelToBoundaryDS()
+    start_position = np.zeros(dimension)
+    impact_velocity = np.array([0.0, 10.0])
+    initial_velocity = dynamics.evaluate(start_position)
 
-    agent: Agent = Agent()
+    agent: Agent = Agent(position=start_position)
     # Set initial velocity
-    agent.velocity = dynamics.evaluate(agent.position)
-    # Impact velocity
-    agent.velocity = agent.velocity + np.array([0.0, 10.0])
+    agent.velocity = initial_velocity + impact_velocity
+
+    dt = 1e-2
+    it_max = int((x_lim[1] - x_lim[0]) / (agent.velocity[0] * dt) + 1)
 
     controller = SimpleController()
 
     fig, ax = plt.subplots(figsize=(5, 4))
+    # Plot velocity arrow
+    arrow_scaling = 0.03
+    ax.arrow(
+        start_position[0],
+        start_position[1],
+        initial_velocity[0] * arrow_scaling,
+        initial_velocity[1] * arrow_scaling,
+        width=0.02,
+        color="blue",
+        zorder=3,
+        # label="Initial velocity",
+    )
+    ax.arrow(
+        start_position[0],
+        start_position[1],
+        impact_velocity[0] * arrow_scaling,
+        impact_velocity[1] * arrow_scaling,
+        width=0.02,
+        color="red",
+        zorder=3,
+        # label="Disturbance",
+    )
+    ax.plot(start_position[0], start_position[1], "o", color="black", zorder=10)
+    ax.text(
+        start_position[0] + initial_velocity[0] * arrow_scaling + 0.2,
+        start_position[1] - 0.048,
+        "Initial \nvelocity",
+        backgroundcolor="white",
+        size=9,
+        color="blue",
+        zorder=3,
+    )
+
+    ax.text(
+        start_position[0] - 0.16,
+        start_position[1] + impact_velocity[0] * arrow_scaling + 0.44,
+        "Impact \nvelocity",
+        backgroundcolor="white",
+        size=9,
+        color="red",
+        zorder=2,
+    )
 
     container = ObstacleContainer()
     container.append(
         Cuboid(axes_length=np.array([3, 0.4]), pose=Pose(position=np.array([1.0, 1.2])))
     )
 
-    plot_obstacles(ax=ax, obstacle_container=container, x_lim=x_lim, y_lim=y_lim)
+    plot_obstacles(
+        ax=ax,
+        obstacle_container=container,
+        x_lim=x_lim,
+        y_lim=y_lim,
+        alpha_obstacle=1.0,
+        zorder_obs=5.0,
+    )
     plot_obstacle_dynamics(
         obstacle_container=container,
         dynamics=dynamics.evaluate,
         x_lim=x_lim,
         y_lim=y_lim,
         ax=ax,
+        n_grid=8,
     )
 
-    # Plot baseline
+    # Plot baseline / Undisturbed motion
     ax.plot(
-        x_lim, np.zeros(2) * agent.position[1], color="black", alpha=0.5, linewidth=2.0
+        x_lim,
+        np.zeros(2) * agent.position[1],
+        ":",
+        color="black",
+        alpha=0.5,
+        linewidth=2.0,
+        zorder=1,
+        # label="Undisturbed",
     )
 
-    it_max = 500
-    dt = 1e-2
+    # Plot uncontrolled, but disturbed
+    undisturbed_position = agent.position + agent.velocity * dt * it_max
+    ax.plot(
+        [agent.position[0], undisturbed_position[0]],
+        [agent.position[1], undisturbed_position[1]],
+        "--",
+        # label="Uncontrolled",
+        color="red",
+        alpha=0.6,
+        linewidth=2.0,
+        zorder=2,
+    )
 
     positions = np.zeros((dimension, it_max + 1))
     positions[:, 0] = agent.position
@@ -110,12 +185,100 @@ def main():
 
         positions[:, ii + 1] = agent.position
 
-    plt.plot(dt * np.arange(it_max + 1), positions[0, :])
-    # plt.ylim([-5, 5])
+    ax.plot(
+        positions[0, :],
+        positions[1, :],
+        "k",
+        linestyle="dashdot",
+        linewidth=2.0,
+        label=r"$s^{obs} = 10$",
+    )
+
+    # Very high damping - w/ max-force
+    controller.s_obs = 20
+    agent: Agent = Agent(position=start_position)
+    # Set initial velocity
+    agent.velocity = dynamics.evaluate(agent.position)
+    # Impact velocity
+    agent.velocity = agent.velocity + impact_velocity
+    # agent.max_force = 1e10
+    agent.max_force = 1e10
+
+    positions = np.zeros((dimension, it_max + 1))
+    positions[:, 0] = agent.position
+
+    for ii in range(it_max):
+        force = controller.compute_force(
+            agent.velocity, dynamics.evaluate(agent.position)
+        )
+        agent.apply_force(force)
+        agent.euler_step(dt)
+
+        positions[:, ii + 1] = agent.position
+    ax.plot(positions[0, :], positions[1, :], linewidth=2, label="$s^{obs} = 20$")
+
+    # Very high damping - w/ max-force
+    controller.s_obs = 40
+    agent: Agent = Agent(position=start_position)
+    # Set initial velocity
+    agent.velocity = dynamics.evaluate(agent.position)
+    # Impact velocity
+    agent.velocity = agent.velocity + impact_velocity
+    agent.max_force = 1e10
+
+    positions = np.zeros((dimension, it_max + 1))
+    positions[:, 0] = agent.position
+
+    for ii in range(it_max):
+        force = controller.compute_force(
+            agent.velocity, dynamics.evaluate(agent.position)
+        )
+        agent.apply_force(force)
+        agent.euler_step(dt)
+
+        positions[:, ii + 1] = agent.position
+    ax.plot(positions[0, :], positions[1, :], linewidth=2, label="$s^{obs} = 40$")
+
+    # Very high damping - w/ max-force
+    controller.s_obs = 40
+    agent: Agent = Agent(position=start_position)
+    # Set initial velocity
+    agent.velocity = dynamics.evaluate(agent.position)
+    # Impact velocity
+    agent.velocity = agent.velocity + impact_velocity
+    agent.max_force = 100
+
+    positions = np.zeros((dimension, it_max + 1))
+    positions[:, 0] = agent.position
+
+    for ii in range(it_max):
+        force = controller.compute_force(
+            agent.velocity, dynamics.evaluate(agent.position)
+        )
+        agent.apply_force(force)
+        agent.euler_step(dt)
+
+        positions[:, ii + 1] = agent.position
+    ax.plot(
+        positions[0, :],
+        positions[1, :],
+        linestyle="dashdot",
+        linewidth=2,
+        label=r"$s^{obs} = 40$" + "\n" + r"$\tau^{max} = 100$",
+    )
+
+    ax.legend(loc="center right")
+
+    if save_figure:
+        figname = "parallel_avoidance_obstacle"
+        plt.savefig("figures/" + figname + filetype, bbox_inches="tight")
 
 
 if (__name__) == "__main__":
     plt.ion()
     plt.close("all")
-    main()
+    filetype = ".pdf"
+
+    main(save_figure=True)
+
     # breakpoint()
