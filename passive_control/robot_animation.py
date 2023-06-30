@@ -66,7 +66,8 @@ class CotrolledRobotAnimation(Animator):
         self.draw_qolo = draw_qolo
         self.rotate_qolo = rotate_qolo
 
-        self.qolo = mpimg.imread("./Qolo_T_CB_top_bumper_low_qual.png")
+        # self.qolo = mpimg.imread("./Qolo_T_CB_top_bumper_low_qual.png")
+        self.qolo = mpimg.imread("media/Qolo_T_CB_top_bumper_low_qual.png")
         self.qolo_length_x = mn.QOLO_LENGHT_X
         self.qolo_length_y = (
             (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x

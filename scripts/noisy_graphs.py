@@ -23,7 +23,6 @@ from passive_control.robot_animation import s_list
 
 
 def run_control_robot(noise_pos=0.0, noise_vel=0.0, is_obs_aw=True):
-
     mn.NOISE_STD_POS = noise_pos
     mn.NOISE_STD_VEL = noise_vel
 
@@ -146,10 +145,7 @@ def run_control_robot(noise_pos=0.0, noise_vel=0.0, is_obs_aw=True):
     return my_animation.get_d_min()
 
 
-if (__name__) == "__main__":
-    plt.close("all")
-    plt.ion()
-
+def main():
     n = 8  # 8
     epochs = 8  # 8
     d_min_tab_obs_aw = np.zeros((n, epochs))
@@ -252,3 +248,10 @@ if (__name__) == "__main__":
     # fig.show()
     # plt.show()
     # pass #add breakpoint here if want to plot s
+
+
+if (__name__) == "__main__":
+    plt.close("all")
+    plt.ion()
+
+    main()
