@@ -348,10 +348,7 @@ def run_control_robot_3D():
     my_animation.run(save_animation=False)
 
 
-if (__name__) == "__main__":
-    plt.close("all")
-    plt.ion()
-
+def plot_with_energy_tank():
     run_control_robot()
     # run_control_robot_3D()
 
@@ -367,3 +364,10 @@ if (__name__) == "__main__":
     plt.ylabel("Energy tank level")
     plt.title("Energy tank level at each iteration")
     # plt.show(block = True)
+
+
+if (__name__) == "__main__":
+    plt.close("all")
+    plt.ion()
+
+    plot_with_energy_tank()
