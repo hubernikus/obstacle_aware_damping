@@ -1,5 +1,13 @@
+from attrs import define, field
+
+import numpy as np
+
+from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
+
 from passive_control.agent import Agent
 from passive_control.controller import Controller
+
+import passive_control.magic_numbers_and_enums as mn
 
 
 @define
@@ -49,7 +57,7 @@ def test_passive_around_simple_obstacle(visualize=False):
     )
 
     agent = Agent(position=np.array([-4, 1]))
-    controller = PassiveDynamicsController()
+    controller = PassiveDynamicsController(lambda_dynamics=10.0, lambda_remaining=1.0)
 
     initial_dynamics = LinearSystem(
         attractor_position=np.array([4.0, 0.0]),

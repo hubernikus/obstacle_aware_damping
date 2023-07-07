@@ -131,7 +131,7 @@ class TrackingController(Controller):
         self.obs_dist_list = np.zeros(len(self.obstacle_environment))
         self.gamma_list = np.zeros(len(self.obstacle_environment))
 
-        for obs in self.obstacle_environment:
+        for ii, obs in enumerate(self.obstacle_environment):
             # gather the parameters wrt obstacle i
             normal = obs.get_normal_direction(
                 position, in_obstacle_frame=False
@@ -737,9 +737,9 @@ class TrackingController(Controller):
         averaged_normal = self.compute_averaged_normal(
             self.obs_normals_list, self.obs_dist_list
         )
-        danger_weight = self.compute_danger_weight(self.obs_dist_list, averaged_normal)
+        weight = self.compute_danger_weight(self.obs_dist_list, averaged_normal)
 
-        if danger_weight <= 0:
+        if weight <= 0:
             return D_DS
 
         e1_obs = averaged_normal / np.linalg.norm(averaged_normal)
@@ -821,15 +821,18 @@ class TrackingController(Controller):
         averagd_normal = np.sum(
             normals * np.tile(weights, (normals.shape[0], 1)), axis=1
         )
-        breakpoint()
         return averagd_normal
 
     def compute_danger_weight(
         self, gammas, averaged_normal, gamma_critical: float = 3.0
     ) -> float:
-        weight = max(gamma_critical - np.min(gammas) / (gamma_critical - 1))
-        # weight = weight ** (1 / np.linalg.norm(averaged_normal))
-        return weight
+        min_gammas = min(gammas)
+        if min_gammas < 1:
+            return 1
+        elif min_gammas > gamma_critical:
+            return 0
+        else:
+            return (gamma_critical - min_gammas) / (gamma_critical - 1)
 
     # ENERGY TANK RELATED
     # all x, xdot must be from actual step and not future (i.e. must not be updated yet)

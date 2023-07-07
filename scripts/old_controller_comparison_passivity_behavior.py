@@ -14,6 +14,11 @@ from vartools.dynamical_systems import LinearSystem
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
 from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
+from dynamic_obstacle_avoidance.visualization import plot_obstacles
+from dynamic_obstacle_avoidance.visualization.plot_obstacle_dynamics import (
+    plot_obstacle_dynamics,
+)
+
 
 # from my passive_control.
 from passive_control.robot import Robot
@@ -25,7 +30,7 @@ from passive_control.magic_numbers_and_enums import TypeOfDMatrix as TypeD
 from passive_control.magic_numbers_and_enums import Approach
 import passive_control.magic_numbers_and_enums as mn
 
-from passive_control.draw_obs_overwrite import plot_obstacles
+# from passive_control.draw_obs_overwrite import plot_obstacles
 from passive_control.visualization import plot_qolo
 
 # just for plotting : global var, remoove when no bug
@@ -356,6 +361,11 @@ def plot_multiple_avoider():
         distance_decrease=0.5,
     )
 
+    avoider = ModulationAvoider(
+        initial_dynamics=initial_dynamics,
+        obstacle_environment=obstacle_environment,
+    )
+
     fig, ax = plt.subplots(figsize=(6, 4))
 
     states = [
@@ -388,8 +398,21 @@ def plot_multiple_avoider():
         showLabel=False,
     )
 
-    atractor = initial_dynamics.attractor_position
-    ax.plot(atractor[0], atractor[1], "k*", markersize=12)
+    plot_obstacle_dynamics(
+        obstacle_container=obstacle_environment,
+        dynamics=avoider.evaluate,
+        x_lim=x_lim,
+        y_lim=y_lim,
+        n_grid=30,
+        ax=ax,
+        attractor_position=initial_dynamics.attractor_position,
+        do_quiver=False,
+        show_ticks=False,
+        vectorfield_color="#7a7a7a7f",
+    )
+
+    attractor = initial_dynamics.attractor_position
+    ax.plot(attractor[0], attractor[1], "k*", markersize=12)
 
     ax.set_xlim(x_lim)
     ax.set_ylim(y_lim)
@@ -420,7 +443,25 @@ def plot_single_avoidance():
         distance_decrease=0.5,
     )
 
+    avoider = ModulationAvoider(
+        initial_dynamics=initial_dynamics,
+        obstacle_environment=obstacle_environment,
+    )
+
     fig, ax = plt.subplots(figsize=(6, 4))
+
+    plot_obstacle_dynamics(
+        obstacle_container=obstacle_environment,
+        dynamics=avoider.evaluate,
+        x_lim=x_lim,
+        y_lim=y_lim,
+        n_grid=30,
+        ax=ax,
+        attractor_position=initial_dynamics.attractor_position,
+        do_quiver=False,
+        show_ticks=False,
+        vectorfield_color="#7a7a7a7f",
+    )
 
     plot_passivity_comparison(
         ax,
@@ -458,6 +499,6 @@ if (__name__) == "__main__":
     plt.ion()
 
     # plot_passivity_comparison()
-    # plot_multiple_avoider()
+    plot_multiple_avoider()
     # plot_single_avoidance()
-    analysis_point()
+    # analysis_point()

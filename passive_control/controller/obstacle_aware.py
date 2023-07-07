@@ -148,12 +148,17 @@ class ObstacleAwarePassivController(Controller):
 
         weight = abs(dotproduct / np.linalg.norm(desired_velocity))
 
+        # Set desired matrix values
+        if basis1.T @ desired_velocity > 0:
+            lambda0 = self.lambda_obstacle
+        else:
+            lambda0 = self.lambda_remaining
+        lambda1 = (1 - weight) * self.lambda_dynamics + weight * self.lambda_remaining
         damping_matrix = np.diag(
             np.hstack(
                 (
-                    self.lambda_obstacle,
-                    (1 - weight) * self.lambda_dynamics
-                    + weight * self.lambda_remaining,
+                    lambda0,
+                    lambda1,
                     self.lambda_remaining * np.ones(self.dimension - 2),
                 )
             )
