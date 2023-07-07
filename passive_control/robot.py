@@ -1,5 +1,8 @@
-import numpy as np
+import copy
 from time import time
+
+import numpy as np
+
 
 # my passive_control.
 from passive_control.controller import TrackingController
@@ -44,13 +47,15 @@ class Robot:
             raise ValueError("Specify a controller")
         self.controller = controller
 
-        self.x = x
         if x is None:
             self.x = np.zeros(self.DIM)
+        else:
+            self.x = copy.deepcopy(x)
 
-        self.xdot = xdot
         if xdot is None:
             self.xdot = np.zeros(self.DIM)
+        else:
+            self.xdot = copy.deepcopy(xdot)
 
         self.dt = dt
 
@@ -58,6 +63,22 @@ class Robot:
         self.tau_e = np.zeros(self.DIM)  # external disturbance torque
 
         self.noisy = noisy
+
+    @property
+    def position(self) -> np.ndarray:
+        return self.x
+
+    @position.setter
+    def position(self, value: np.ndarray) -> None:
+        self.x = value
+
+    @property
+    def velocity(self) -> np.ndarray:
+        return self.xdot
+
+    @velocity.setter
+    def velocity(self, value: np.ndarray) -> None:
+        self.xdot = value
 
     def simulation_step(self):
         """
@@ -74,13 +95,12 @@ class Robot:
         # update of D matrix to follow DS or passive to obs
         self.controller.update_D_matrix(x, xdot)
 
-        # udpate the energy tank - not used
-        self.controller.update_energy_tank(self.x, self.xdot, self.dt)
+        # # udpate the energy tank - not used
+        # self.controller.update_energy_tank(self.x, self.xdot, self.dt)
 
         # update tau_c
         self.tau_c = self.controller.compute_tau_c(x, xdot)
         t_diff = time() - t_now
-        # print(f"time to compute control command: {t_diff}")
 
         ###########################
         ## DYNAMICS OF THE ROBOT ##
@@ -97,6 +117,12 @@ class Robot:
         # reset the disturbance, because taken account of it in rk4_step()
         # i.e. disturbance are ponctual, only applied once to the system
         self.tau_e = np.zeros(self.DIM)
+
+        if np.any(np.isnan(self.position)):
+            breakpoint()
+
+        if np.any(np.isnan(self.velocity)):
+            breakpoint()
 
     def func_dyn(self, pos, vel, time):
         """

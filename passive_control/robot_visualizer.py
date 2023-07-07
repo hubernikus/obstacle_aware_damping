@@ -1,18 +1,18 @@
+import datetime
+import os
+import copy
 from collections import namedtuple
 
 import numpy as np
+from scipy import ndimage
+
 import matplotlib.pyplot as plt
 from matplotlib import animation
-import datetime
-import os
 import matplotlib.image as mpimg
-from scipy import ndimage
 
 # passive_control.of lukas
 from vartools.animator import Animator
-
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
-
 
 # my passive_control.
 from passive_control.robot import Robot
@@ -22,10 +22,10 @@ from passive_control.draw_obs_overwrite import plot_obstacles
 # just for plotting : global
 s_list = []
 
-Disturbance = namedtuple("Disturbance", "time direction")
+Disturbance = namedtuple("Disturbance", "step direction")
 
 
-class CotrolledRobotAnimation(Animator):
+class MultiRobotAnimation(Animator):
     """
     Animator class that runs the main loop, simulates and vizualizes everything
     """
@@ -38,10 +38,12 @@ class CotrolledRobotAnimation(Animator):
         x_lim=[-1.5, 2],
         y_lim=[-0.5, 2.5],
         figsize: tuple = None,
+        fig_and_ax: tuple = None,
         disturbance_scaling=200.0,
         draw_ideal_traj=False,
         draw_qolo=False,
         rotate_qolo=False,
+        disturances: list[Disturbance] = [],  # READ ONLY (!)
     ):
         self.DIM = DIM
         self.x_lim = x_lim
@@ -77,12 +79,18 @@ class CotrolledRobotAnimation(Animator):
             (1.0) * self.qolo.shape[0] / self.qolo.shape[1] * self.qolo_length_x
         )
 
-        if self.DIM == 2:
-            if figsize is None:
-                figsize = (10, 8)
-            self.fig, self.ax = plt.subplots(figsize=figsize)
+        # Make sure it's not overwritten
+        self.disturances = copy.deepcopy(disturances)
+
+        if fig_and_ax is None:
+            if self.DIM == 2:
+                if figsize is None:
+                    figsize = (10, 8)
+                    self.fig, self.ax = plt.subplots(figsize=figsize)
+                else:
+                    self.fig, self.ax = plt.subplots(1, 2, figsize=(14, 7))
         else:
-            self.fig, self.ax = plt.subplots(1, 2, figsize=(14, 7))
+            self.fig, self.ax = fig_and_ax
 
         self.d_min = 1000.0  # variable to record closest pos to obs, big init value
 
@@ -207,9 +215,11 @@ class CotrolledRobotAnimation(Animator):
             self.ax.plot(
                 self.position_list_ideal[0, :ii],
                 self.position_list_ideal[1, :ii],
-                ":",
+                "--",
+                linewidth="3.0",
                 color="#0000FF",
                 label="Ideal trajectory",
+                zorder=-1,
             )
 
         # past trajectory - in green
@@ -217,9 +227,11 @@ class CotrolledRobotAnimation(Animator):
             self.ax.plot(
                 self.position_list[0, : (ii - 1)],
                 self.position_list[1, : (ii - 1)],
-                ":",
+                "--",
+                linewidth="3.0",
                 color="#135e08",
                 label="Real trajectory",
+                zorder=-1,
             )
 
         # atractor position
@@ -245,6 +257,7 @@ class CotrolledRobotAnimation(Animator):
         # disturbance drawing
         draw_scaling = 1e-3
         arrow_width = 0.05
+        zorder_arrow = 2
         for i, (disturbance, disturbance_pos) in enumerate(
             zip(
                 self.disturbance_list.transpose(), self.disturbance_pos_list.transpose()
@@ -260,6 +273,7 @@ class CotrolledRobotAnimation(Animator):
                     width=arrow_width,
                     color="r",
                     label="Disturbances",
+                    zorder=zorder_arrow,
                 )
             else:
                 self.ax.arrow(
@@ -269,6 +283,7 @@ class CotrolledRobotAnimation(Animator):
                     disturbance[1] * draw_scaling,
                     width=arrow_width,
                     color="r",
+                    zorder=zorder_arrow,
                 )
 
         if self.draw_qolo:
@@ -277,6 +292,7 @@ class CotrolledRobotAnimation(Animator):
                 angle_rot = np.arctan2(
                     self.velocity_list[1, ii], self.velocity_list[0, ii]
                 )
+
                 qolo_rot = ndimage.rotate(
                     self.qolo, angle_rot * 180.0 / np.pi, cval=255
                 )
@@ -404,6 +420,7 @@ class CotrolledRobotAnimation(Animator):
                         width=draw_width,
                         color="r",
                         label="Disturbances",
+                        zorder=2,
                     )
                 else:
                     ax.arrow(
@@ -413,6 +430,7 @@ class CotrolledRobotAnimation(Animator):
                         disturbance[ordinate] / draw_scaling,
                         width=draw_width,
                         color="r",
+                        zorder=2,
                     )
 
             if self.draw_qolo:
@@ -638,6 +656,16 @@ class CotrolledRobotAnimation(Animator):
         self.new_disturbance = True
 
     def artificial_disturbances_2D(self, ii):
+        for disturbance in self.disturances:
+            if disturbance.step == ii:
+                disturbance = disturbance.direction * self.disturbance_scaling
+                self.robot.tau_e = disturbance
+                self.disturbance_list = np.append(
+                    self.disturbance_list, disturbance.reshape(self.DIM, 1), axis=1
+                )
+                self.new_disturbance = True
+                return
+
         # if ii == 20:
         #     disturbance = np.array([-1.,3.])*self.disturbance_scaling
         #     self.robot.tau_e = disturbance
@@ -657,13 +685,13 @@ class CotrolledRobotAnimation(Animator):
         #     self.robot.tau_e = disturbance
         #     self.disturbance_list = np.append(self.disturbance_list, disturbance.reshape(self.DIM,1), axis=1)
         #     self.new_disturbance = True
-        if ii == 65:
-            disturbance = np.array([2.0, -4.0]) * self.disturbance_scaling
-            self.robot.tau_e = disturbance
-            self.disturbance_list = np.append(
-                self.disturbance_list, disturbance.reshape(self.DIM, 1), axis=1
-            )
-            self.new_disturbance = True
+        # if ii == 65:
+        #     disturbance = np.array([2.0, -4.0]) * self.disturbance_scaling
+        #     self.robot.tau_e = disturbance
+        #     self.disturbance_list = np.append(
+        #         self.disturbance_list, disturbance.reshape(self.DIM, 1), axis=1
+        #     )
+        #     self.new_disturbance = True
         # if ii == 50:
         #     disturbance = np.array([-1.0,-4.0])*self.disturbance_scaling
         #     self.robot.tau_e = disturbance

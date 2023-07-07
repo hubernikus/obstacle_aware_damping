@@ -19,8 +19,7 @@ source .venv/bin/activate
 
 Install requirements and current library (editable):
 ``` bash
-pip install -r requirements.txt
-pip install -e .
+pip install -r requirements.txt && pip install -e .
 ```
 
 ### Install the required passive_control.

@@ -2,6 +2,7 @@
 wheel # Needed to install dependencies without project.toml-file
 numpy
 matplotlib
+attrs
 
 # For better interface
 ipython

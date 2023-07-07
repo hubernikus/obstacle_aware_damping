@@ -1,7 +1,9 @@
-import numpy as np
-from abc import ABC, abstractmethod
 import time
 import warnings
+from typing import Optional
+from abc import ABC, abstractmethod
+
+import numpy as np
 
 # passive_control.of lukas
 from dynamic_obstacle_avoidance.avoidance import ModulationAvoider
@@ -64,7 +66,7 @@ class TrackingController(Controller):
 
     def __init__(
         self,
-        dynamic_avoider: ModulationAvoider,
+        dynamic_avoider: Optional[ModulationAvoider] = None,
         DIM=2,
         G=None,
         lambda_DS=100.0,  # to follow DS line
@@ -81,6 +83,13 @@ class TrackingController(Controller):
         self.G = G
         if G is None:
             self.G = np.zeros(self.DIM)
+
+        if (
+            lambda_DS > mn.LAMBDA_MAX
+            or lambda_perp > mn.LAMBDA_MAX
+            or lambda_obs > mn.LAMBDA_MAX
+        ):
+            raise ValueError(f"lambda must be smaller than {mn.LAMBDA_MAX}")
 
         self.lambda_DS = lambda_DS
         self.lambda_perp = lambda_perp
@@ -110,6 +119,30 @@ class TrackingController(Controller):
         self.s = mn.S_MAX / 2
         self.z = 0  # initialized later
 
+    @property
+    def obstacle_environment(self):
+        return self.dynamic_avoider.obstacle_environment
+
+    @property
+    def dimension(self):
+        return self.DIM
+
+    def update_normal_list(self, position: np.ndarray) -> None:
+        self.obs_normals_list = np.empty((self.dimension, 0))
+        self.obs_dist_list = np.zeros(len(self.obstacle_environment))
+        self.gamma_list = np.zeros(len(self.obstacle_environment))
+
+        for obs in self.obstacle_environment:
+            # gather the parameters wrt obstacle i
+            normal = obs.get_normal_direction(
+                position, in_obstacle_frame=False
+            ).reshape(self.dimension, 1)
+
+            self.obs_normals_list = np.append(self.obs_normals_list, normal, axis=1)
+
+            self.gamma_list[ii] = obs.get_gamma(position, in_obstacle_frame=False)
+            self.obs_dist_list[ii] = self.gamma_list[ii] - 1
+
     def compute_tau_c(self, x, xdot):
         """
         return the torque control command of the DS-tracking controller,
@@ -121,20 +154,23 @@ class TrackingController(Controller):
             and self.approach == Approach.ORTHO_BASIS
             and self.type_of_D_matrix == TypeD.BOTH
         ):
+            # TODO: not recomputing.. is this ok?!
             x_dot_des = self.dynamic_avoider.evaluate(x)
+            # x_dot_des = xdot
             tau_c = self.G - self.D @ (xdot - x_dot_des)
 
             # physical constrains, value ?
             tau_c[tau_c > mn.MAX_TAU_C] = mn.MAX_TAU_C
             tau_c[tau_c < -mn.MAX_TAU_C] = -mn.MAX_TAU_C
 
+            if np.any(np.isnan(tau_c)):
+                breakpoint()
             return tau_c
 
         # f_c, f_r = self.decomp_f(x)
         # beta_r = self.get_beta_r()
 
         beta_r_list = self.get_beta_r_list()
-        # print(beta_r_list)
 
         # tau_c = self.G - self.D@xdot + self.lambda_DS*f_c + beta_r*self.lambda_DS*f_r
         tau_c = (
@@ -142,6 +178,9 @@ class TrackingController(Controller):
             - self.D @ xdot
             + np.sum(self.f_decomp * beta_r_list * np.diag(self.lambda_mat), axis=1)
         )
+
+        if np.any(np.isnan(tau_c)):
+            breakpoint()
 
         return tau_c
 
@@ -153,10 +192,19 @@ class TrackingController(Controller):
         #     return
 
         if self.type_of_D_matrix == TypeD.DS_FOLLOWING:
-            D = self.compute_D_matrix_wrt_DS(x)
+            D = self.compute_D_matrix_wrt_DS(x, xdot)
+
         elif self.type_of_D_matrix == TypeD.OBS_PASSIVITY:
+            self.update_normal_list(x)
             D = self.compute_D_matrix_wrt_obs(xdot)
+
         elif self.type_of_D_matrix == TypeD.BOTH:
+            self.update_normal_list(x)
+
+            if self.approach == Approach.WEIGHT_DS_OBS_MAT_V2:
+                D = self.compute_D_matrix_wrt_both_mat_add_v2(x, xdot)
+            else:
+                raise ValueError("Using outdated controller...")
             # chose the way to control
             if self.approach == Approach.ORTHO_BASIS:  # better
                 D = self.compute_D_matrix_wrt_both_ortho_basis(x, xdot)
@@ -164,32 +212,31 @@ class TrackingController(Controller):
                 D = self.compute_D_matrix_wrt_both_not_orthogonal(x, xdot)
             elif self.approach == Approach.WEIGHT_DS_OBS_MAT:
                 D = self.compute_D_matrix_wrt_both_mat_add(x, xdot)
-            elif self.approach == Approach.WEIGHT_DS_OBS_MAT_V2:
-                D = self.compute_D_matrix_wrt_both_mat_add_v2(x, xdot)
 
-        # improve stability at atractor, not recompute always D???
-        if (
-            np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position)
-            < mn.EPS_CONVERGENCE
-        ):
-            # D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
-            # return
-            pass  # curently doing nothing
+        # # improve stability at atractor, not recompute always D???
+        # if (
+        #     np.linalg.norm(x - self.dynamic_avoider.initial_dynamics.attractor_position)
+        #     < mn.EPS_CONVERGENCE
+        # ):
+        #     # D = np.array([[mn.LAMBDA_MAX, 0.0], [0.0, mn.LAMBDA_MAX]])
+        #     # return
+        #     pass  # curently doing nothing
 
         # update the damping matrix
         self.D = D
 
-    def compute_D_matrix_wrt_DS(self, x):
+    def compute_D_matrix_wrt_DS(self, x, x_dot_des=None):
         """
         Computes the damping matrix, without considering obstacles.
         This implements the traditional passive control
         """
+        # if x_dot_des is None:
         # get desired velocity
         x_dot_des = self.dynamic_avoider.evaluate(x)
 
         # construct the basis matrix, align to the DS direction
         self.E = get_orthogonal_basis(x_dot_des)
-        E_inv = np.linalg.inv(self.E)
+        # E_inv = np.linalg.inv(self.E)
 
         # contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
@@ -204,7 +251,8 @@ class TrackingController(Controller):
             )
 
         # compose the damping matrix
-        D = self.E @ self.lambda_mat @ E_inv
+        D = self.E @ self.lambda_mat @ self.E.T
+        # print("D-passive", D)
         return D
 
     def compute_D_matrix_wrt_obs(self, xdot):
@@ -283,6 +331,8 @@ class TrackingController(Controller):
 
         # compose the damping matrix
         D = self.E @ self.lambda_mat @ E_inv
+
+        # print("D-obs", self.lambda_mat)
         return D
 
     def compute_D_matrix_wrt_both_ortho_basis(self, x, xdot):
@@ -649,9 +699,9 @@ class TrackingController(Controller):
         # get desired velocity
         x_dot_des = self.dynamic_avoider.evaluate(x)
 
-        # if the desired velocity is too small, we risk numerical issue, we have converge (or sadle point)
+        # if the desired velocity is too small,
+        # we risk numerical issue, we have converge (or saddle point)
         if np.linalg.norm(x_dot_des) < mn.EPSILON:
-            # we just return the previous damping matrix
             return self.D
 
         # compute the vector align to the DS
@@ -659,7 +709,6 @@ class TrackingController(Controller):
 
         # construct the basis matrix, align to the DS direction
         E_DS = get_orthogonal_basis(e1_DS)
-        E_DS_inv = np.linalg.inv(E_DS)
 
         # contruct the matrix containing the damping coefficient along selective directions
         if self.DIM == 2:
@@ -674,7 +723,7 @@ class TrackingController(Controller):
             )
 
         # compose the damping matrix
-        D_DS = E_DS @ lambda_mat_DS @ E_DS_inv
+        D_DS = E_DS @ lambda_mat_DS @ E_DS.T
 
         # if there is no obstacles, we want D to be stiff w.r.t. the DS
         if not np.size(self.obs_dist_list):
@@ -686,34 +735,15 @@ class TrackingController(Controller):
         # e1 : points in normal
         # e2 : proj of e1:ds that's ortho to e1_obs
 
-        weight = 0
-        div = 0
-        e1_obs = np.zeros(self.DIM)
-        # get the normals and compute the weight of the obstacles
-        for normal, dist in zip(self.obs_normals_list.T, self.obs_dist_list):
-            # if dist <0 we're IN the obs
-            if dist <= 0:
-                return self.D
+        averaged_normal = self.compute_averaged_normal(
+            self.obs_normals_list, self.obs_dist_list
+        )
+        danger_weight = self.compute_danger_weight(self.obs_dist_list, averaged_normal)
 
-            # weight is 1 at the boundary, 0 at a distance DIST_CRIT from the obstacle
-            weight_i = max(0.0, 1.0 - dist / mn.DIST_CRIT)
-            if weight_i > weight:
-                weight = weight_i
+        if danger_weight <= 0:
+            return D_DS
 
-            # e1 is a weighted linear combination of all the normals
-            e1_obs += normal / (dist + mn.EPSILON)
-            div += 1 / (dist + mn.EPSILON)
-
-        e1_obs = e1_obs / div
-
-        e1_obs_norm = np.linalg.norm(e1_obs)
-        # if the normal gets too small, we reduce w->0 to just take the D_ds matrix
-        delta_w_cont = 0.01
-        weight = weight * smooth_step(0, delta_w_cont, e1_obs_norm)
-        if e1_obs_norm:
-            # resultant normal is defined
-            e1_obs = e1_obs / e1_obs_norm
-
+        e1_obs = averaged_normal / np.linalg.norm(averaged_normal)
         # basis construction depends on dimension
         if self.DIM == 3:
             # check if alignement
@@ -773,7 +803,30 @@ class TrackingController(Controller):
         #####################
 
         D_tot = (1 - weight) * D_DS + weight * D_obs
+        # print()
+        # print("LAMBDA-both [DS]", lambda_mat_DS)
+        # print("LAMBDA-both [obs]", lambda_mat_obs)
+        # print("weight(obs)", weight)
         return D_tot
+
+    def compute_averaged_normal(self, normals, gammas) -> np.ndarray:
+        weights = gammas - 1
+
+        ind_negative = weights < 0
+        if np.any(ind_negative):
+            weights = ind_negative / np.sum(ind_negative)
+        else:
+            weights = 1 / weights
+            weights = weights / np.sum(weights)
+
+        averagd_normal = np.sum(normals * np.tile(weights, (normals.shape[0], 1)), axis=01)
+        breakpoint()
+        return averagd_normal
+
+    def compute_danger_weight(self, gammas, averaged_normal, gamma_critical: float = 3.0) -> float:
+        weight = max(gamma_critical - np.min(gammas) / (gamma_critical - 1))
+        # weight = weight ** (1 / np.linalg.norm(averaged_normal))
+        return weight
 
     # ENERGY TANK RELATED
     # all x, xdot must be from actual step and not future (i.e. must not be updated yet)
@@ -923,6 +976,7 @@ class TrackingController(Controller):
 
 
 ### HELPER FUNTION ###
+
 
 # helper smooth step functions
 def smooth_step(a, b, x):
