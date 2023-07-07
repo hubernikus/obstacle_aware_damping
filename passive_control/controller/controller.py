@@ -20,9 +20,8 @@ class Controller(ABC):
     interface controller template
     """
 
-    @abstractmethod
-    def compute_tau_c():
-        pass
+    def is_damping_value(self, attributes, value) -> bool:
+        return 0 < value <= mn.LAMBDA_MAX
 
 
 class RegulationController(Controller):
@@ -819,11 +818,15 @@ class TrackingController(Controller):
             weights = 1 / weights
             weights = weights / np.sum(weights)
 
-        averagd_normal = np.sum(normals * np.tile(weights, (normals.shape[0], 1)), axis=01)
+        averagd_normal = np.sum(
+            normals * np.tile(weights, (normals.shape[0], 1)), axis=1
+        )
         breakpoint()
         return averagd_normal
 
-    def compute_danger_weight(self, gammas, averaged_normal, gamma_critical: float = 3.0) -> float:
+    def compute_danger_weight(
+        self, gammas, averaged_normal, gamma_critical: float = 3.0
+    ) -> float:
         weight = max(gamma_critical - np.min(gammas) / (gamma_critical - 1))
         # weight = weight ** (1 / np.linalg.norm(averaged_normal))
         return weight

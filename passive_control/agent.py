@@ -1,5 +1,5 @@
 import copy
-from typing import Callable
+from typing import Callable, Optional
 
 from attrs import define, field
 
@@ -53,7 +53,7 @@ class Agent:
 
     @mass_matrix.default
     def _default_mass_matrix(self):
-        return np.zeros((self.position.shape[0], self.position.shape[0]))
+        return np.eye(self.position.shape[0])
 
     @gravity_vector.default
     def _default_gravity_vector(self):
@@ -63,13 +63,16 @@ class Agent:
     def _default_coriolis_matrix(self):
         return np.zeros((self.position.shape[0], self.position.shape[0]))
 
-    def compute_acceleration(self, control_force: np.ndarray) -> np.ndarray:
+    def compute_acceleration(
+        self, control_force: np.ndarray, external_force: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        if external_force is not None:
+            control_force += external_force
+
         acceleration = (
-            conrol_force
-            + external_force
-            - self.gravity_vectoy
-            - self.coriolis_matrix @ self.velocity
+            control_force - self.gravity_vector - self.coriolis_matrix @ self.velocity
         ) @ np.linalg.pinv(self.mass_matrix)
+
         return acceleration
 
     def update_step(self, delta_time: float, control_force: float) -> None:
@@ -81,3 +84,14 @@ class Agent:
         self.position = (
             self.position + 0.5 * (self.velocity + current_velocity) * delta_time
         )
+
+
+def test_consruction():
+    agent = Agent(position=np.zeros(2))
+    assert np.allclose(agent.velocity, np.zeros(2))
+
+
+if (__name__) == "__main__":
+    test_consruction()
+
+    print("Done testing.")
