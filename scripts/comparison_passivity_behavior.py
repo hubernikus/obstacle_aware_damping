@@ -57,6 +57,9 @@ def integrate_agent_trajectory(
         for disturbance in disturbance_list:
             if disturbance.step == ii:
                 force += disturbance.direction
+                # print(f"Disturbance at {ii}")
+                # print("position: ", agent.position)
+                # print("velocity: ", agent.velocity)
                 break
 
         agent.update_step(delta_time, control_force=force)
@@ -131,7 +134,8 @@ def plot_disturbances(
                 direction[0] * arrow_scaling,
                 direction[1] * arrow_scaling,
                 width=arrow_width,
-                color="r",
+                # color="r",
+                color="#C73200",
                 label=("Disturbances" if do_label else None),
                 zorder=zorder_arrow,
             )
@@ -148,43 +152,30 @@ def plot_disturbances(
 
 
 def analysis_point():
+    lambda_DS = 100.0
+    lambda_perp = 20.0
+    lambda_obs = mn.LAMBDA_MAX
+
     dimension = 2
     delta_time = 0.01
 
     x_lim = [-2.5, 3]
     y_lim = [-1.5, 3.0]
 
-    position = np.array([-0.01547262, 0.6068638])
-    velocity = np.array([4.6666115, 0.01105812])
+    position_init = np.array([-0.78891176, -0.74863131])
+    velocity_init = np.array([1.49812948, -0.27046507])
 
     obstacle_environment = create_three_body_container()
 
     initial_dynamics = LinearSystem(
-        attractor_position=np.array([2.0, 0.0]),
-        maximum_velocity=3,
+        attractor_position=np.array([2.5, 0.5]),
+        maximum_velocity=2,
         distance_decrease=0.5,
     )
-    dynamic_avoider = ModulationAvoider(
+
+    avoider = ModulationAvoider(
         initial_dynamics=initial_dynamics,
         obstacle_environment=obstacle_environment,
-    )
-    lambda_DS = 100.0
-    lambda_perp = 20.0
-    lambda_obs = mn.LAMBDA_MAX
-
-    disturbances = [Disturbance(90, np.array([100.0, -1_000.0]))]
-
-    robot_passive_ds = Robot(
-        x=position,
-        xdot=velocity,
-        dt=delta_time,
-        controller=TrackingController(
-            lambda_DS=lambda_DS,
-            lambda_perp=lambda_perp,
-            dynamic_avoider=dynamic_avoider,
-            DIM=dimension,
-            type_of_D_matrix=TypeD.DS_FOLLOWING,
-        ),
     )
 
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -199,13 +190,73 @@ def analysis_point():
     atractor = initial_dynamics.attractor_position
     ax.plot(atractor[0], atractor[1], "k*", markersize=12)
 
+    ax.plot()
+
     ax.set_xlim(x_lim)
     ax.set_ylim(y_lim)
     ax.axes.xaxis.set_visible(False)
     ax.axes.yaxis.set_visible(False)
 
+    disturbance = Disturbance(100, 700 * np.array([1.0, -1.0]))
+    # disturbance = Disturbance(100, 700 * np.array([1.0, 1.0]))
+
+    agent = Agent(position=position_init, velocity=velocity_init)
+    controller = ObstacleAwarePassivController(
+        environment=obstacle_environment,
+        lambda_dynamics=100,
+        lambda_obstacle=200,
+        lambda_remaining=lambda_perp,
+    )
+    ax.plot(agent.position[0], agent.position[1], "o", color="black")
+    arrowidth = 0.1
+    ax.arrow(
+        agent.position[0],
+        agent.position[1],
+        agent.velocity[0],
+        agent.velocity[1],
+        color="green",
+        label="Initial",
+        width=arrowidth,
+    )
+    ax.arrow(
+        agent.position[0],
+        agent.position[1],
+        disturbance.direction[0],
+        disturbance.direction[1],
+        color="red",
+        label="Disturbance",
+        width=arrowidth,
+    )
+
+    # Single step
+    print("initial", agent.velocity)
+    delta_time = 0.01
+
+    # Disturbance only
+    velocity = avoider.evaluate(agent.position)
+    force = disturbance.direction
+    agent.update_step(delta_time, control_force=force)
+
+    # Activate the controller (!)
+    velocity = avoider.evaluate(agent.position)
+    force = controller.compute_control_force(agent, desired_velocity=velocity)
+    agent.update_step(delta_time, control_force=force)
+
+    ax.plot(agent.position[0], agent.position[1], "o", color="black")
+    ax.arrow(
+        agent.position[0],
+        agent.position[1],
+        agent.velocity[0],
+        agent.velocity[1],
+        color="blue",
+        label="Final",
+        width=arrowidth,
+    )
+    # print("final", agent.velocity)
+
+    ax.legend()
     ax.set_aspect("equal")
-    # ax.legend()
+    breakpoint()
 
 
 def plot_passivity_comparison(
@@ -214,7 +265,7 @@ def plot_passivity_comparison(
     obstacle_environment,
     x_init=np.array([-2.2, 0.5]),
     xdot_init=np.array([0.0, 0.0]),
-    delta_time=0.01,
+    delta_time=0.1,
     it_max=200,
     disturbances=[],
     do_label=False,
@@ -276,7 +327,8 @@ def plot_passivity_comparison(
             positions[0, :],
             positions[1, :],
             "--",
-            color="#135e08",
+            # color="#135e08",
+            color="#04D9AC",
             label=("Dynamics preserving" if do_label else None),
             **trajectory_kwargs,
         )
@@ -303,7 +355,8 @@ def plot_passivity_comparison(
             positions[0, :],
             positions[1, :],
             "--",
-            color="blue",
+            # color="blue",
+            color="#1132F0",
             label=("Obstacle aware" if do_label else None),
             **trajectory_kwargs,
         )
@@ -375,18 +428,20 @@ def plot_multiple_avoider(save_figure=False):
         showLabel=False,
     )
 
-    plot_obstacle_dynamics(
-        obstacle_container=obstacle_environment,
-        dynamics=avoider.evaluate,
-        x_lim=x_lim,
-        y_lim=y_lim,
-        n_grid=30,
-        ax=ax,
-        attractor_position=initial_dynamics.attractor_position,
-        do_quiver=False,
-        show_ticks=False,
-        vectorfield_color="#7a7a7a7f",
-    )
+    do_quiver = True
+    if do_quiver:
+        plot_obstacle_dynamics(
+            obstacle_container=obstacle_environment,
+            dynamics=avoider.evaluate,
+            x_lim=x_lim,
+            y_lim=y_lim,
+            n_grid=60,
+            ax=ax,
+            attractor_position=initial_dynamics.attractor_position,
+            do_quiver=False,
+            show_ticks=False,
+            vectorfield_color="#7a7a7a7f",
+        )
 
     attractor = initial_dynamics.attractor_position
     ax.plot(attractor[0], attractor[1], "k*", markersize=12)
