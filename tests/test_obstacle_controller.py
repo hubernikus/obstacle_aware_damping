@@ -6,6 +6,7 @@ from dynamic_obstacle_avoidance.containers import ObstacleContainer
 from dynamic_obstacle_avoidance.utils import get_orthogonal_basis
 
 from passive_control.agent import Agent
+from passive_control.controller import PassiveDynamicsController
 from passive_control.controller import ObstacleAwarePassivController
 
 
@@ -53,7 +54,9 @@ def test_simple_obstacle(visualize=False):
 
         for ii in range(it_max):
             desired_velocity = avoider.evaluate(agent.position)
-            control_force = controller.compute_control_force(agent, desired_velocity)
+            control_force = controller.compute_control_force_for_agent(
+                agent, desired_velocity
+            )
             agent.update_step(delta_time, control_force=control_force)
 
             if np.any(np.isnan(agent.position)):
@@ -76,10 +79,28 @@ def test_simple_obstacle(visualize=False):
     agent.position = np.array([-4, 1])
     agent.velocity = np.zeros_like(agent.position)
     desired_velocity = avoider.evaluate(agent.position)
-    control_force = controller.compute_control_force(agent, desired_velocity)
+    control_force = controller.compute_control_force_for_agent(agent, desired_velocity)
     assert control_force[0] > 0
     assert control_force[1] < 0
 
 
+def test_3d_controller():
+    position = np.array([0, 0, 0])
+    velocity = np.array([1, 0, 0])
+    desired_velocity = np.array([1, 0, 0])
+
+    controller = PassiveDynamicsController(
+        lambda_dynamics=100, lambda_remaining=10, dimension=3
+    )
+
+    force = controller.compute_force(
+        velocity=velocity, desired_velocity=desired_velocity, position=position
+    )
+    assert np.allclose(force, np.zeros(3)), "Already correct force."
+
+
 if (__name__) == "__main__":
     test_simple_obstacle(visualize=False)
+    # test_3d_controller()
+
+    pass

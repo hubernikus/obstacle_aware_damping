@@ -30,8 +30,12 @@ class ObstacleAwarePassivController(Controller):
     _distances_to_obstacles: np.ndarray = np.zeros(0)
     _gammas_of_obstacles: np.ndarray = np.zeros(0)
 
-    def compute_control_force(
-        self, position: np.ndarray, velocity: np.ndarray, desired_velocity: np.ndarray
+    def compute_force(
+        self,
+        *,
+        velocity: np.ndarray,
+        desired_velocity: np.ndarray,
+        position: np.ndarray,
     ) -> np.ndarray:
         """Returns control-force (without gravity vector)"""
         self.update_normal_list(position)
@@ -43,8 +47,10 @@ class ObstacleAwarePassivController(Controller):
         self, agent: Agent, desired_velocity: np.ndarray
     ) -> np.ndarray:
         """Returns control-force (without gravity vector)"""
-        return self.compute_control_force(
-            agent.position, agent.velocity, desired_velocity
+        return self.compute_force(
+            position=agent.position,
+            velocity=agent.velocity,
+            desired_velocity=desired_velocity,
         )
 
     def update_normal_list(self, position: np.ndarray) -> None:

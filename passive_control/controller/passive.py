@@ -1,3 +1,5 @@
+from typing import Optional
+
 from attrs import define, field
 
 import numpy as np
@@ -10,7 +12,7 @@ from passive_control.controller import Controller
 import passive_control.magic_numbers_and_enums as mn
 
 
-@define
+@define(slots=False)  # Deactivated for debugging
 class PassiveDynamicsController(Controller):
     lambda_dynamics: float = field(default=100.0, validator=Controller.is_damping_value)
     lambda_remaining: float = field(
@@ -19,13 +21,31 @@ class PassiveDynamicsController(Controller):
 
     dimension: int = 2
 
-    def compute_control_force(
+    def compute_force(
+        self,
+        *,
+        velocity: np.ndarray,
+        desired_velocity: np.ndarray,
+        position: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Returns control-force (without gravity vector)
+        Funciton is keyword only, due to high possibility of mix-up.
+
+        position is not used in this controller, but kept for consistency"""
+        self.damping_matrix = self.compute_damping(desired_velocity)
+        control_force = self.damping_matrix @ (desired_velocity - velocity)
+
+        return control_force
+
+    def compute_control_force_for_agent(
         self, agent: Agent, desired_velocity: np.ndarray
     ) -> np.ndarray:
         """Returns control-force (without gravity vector)"""
-        self.damping_matrix = self.compute_damping(desired_velocity)
-        control_force = self.damping_matrix @ (desired_velocity - agent.velocity)
-        return control_force
+        return self.compute_control_force(
+            agent.velocity,
+            desired_velocity,
+            agent.position,
+        )
 
     def compute_damping(self, desired_velocity):
         damping_matrix = np.diag(
