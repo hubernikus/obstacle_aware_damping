@@ -31,13 +31,21 @@ class ObstacleAwarePassivController(Controller):
     _gammas_of_obstacles: np.ndarray = np.zeros(0)
 
     def compute_control_force(
+        self, position: np.ndarray, velocity: np.ndarray, desired_velocity: np.ndarray
+    ) -> np.ndarray:
+        """Returns control-force (without gravity vector)"""
+        self.update_normal_list(position)
+        self.damping_matrix = self.compute_damping(desired_velocity, velocity)
+        control_force = self.damping_matrix @ (desired_velocity - velocity)
+        return control_force
+
+    def compute_control_force_for_agent(
         self, agent: Agent, desired_velocity: np.ndarray
     ) -> np.ndarray:
         """Returns control-force (without gravity vector)"""
-        self.update_normal_list(agent.position)
-        self.damping_matrix = self.compute_damping(desired_velocity, agent.velocity)
-        control_force = self.damping_matrix @ (desired_velocity - agent.velocity)
-        return control_force
+        return self.compute_control_force(
+            agent.position, agent.velocity, desired_velocity
+        )
 
     def update_normal_list(self, position: np.ndarray) -> None:
         n_obstacles = len(self.environment)

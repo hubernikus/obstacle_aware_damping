@@ -7,6 +7,9 @@ attrs
 # For better interface
 ipython
 
+# For evaluation of experiments
+pandas
+
 # Debugging / TypeHint
 flake8
 black

@@ -52,7 +52,9 @@ def integrate_agent_trajectory(
             print(f"Step {ii+1} / {it_max}")
 
         velocity = dynamics(agent.position)
-        force = controller.compute_control_force(agent, desired_velocity=velocity)
+        force = controller.compute_control_force(
+            agent.position, agent.velocity, desired_velocity=velocity
+        )
 
         for disturbance in disturbance_list:
             if disturbance.step == ii:
