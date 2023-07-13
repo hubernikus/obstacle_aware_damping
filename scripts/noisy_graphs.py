@@ -192,6 +192,7 @@ def main():
         noise_level, mean_obs + std_obs, mean_obs - std_obs, alpha=0.3, color="b"
     )
     plt.plot(noise_level, mean_obs, color="b", label="Obstacle aware passive control")
+
     # original kronander plot
     plt.fill_between(
         noise_level, mean_kro + std_kro, mean_kro - std_kro, alpha=0.3, color="r"

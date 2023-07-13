@@ -102,5 +102,4 @@ def test_3d_controller():
 if (__name__) == "__main__":
     test_simple_obstacle(visualize=False)
     # test_3d_controller()
-
     pass

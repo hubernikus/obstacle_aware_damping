@@ -117,7 +117,8 @@ class Simulated:
         # e1 : points in DS dir
         # e2, ... : arbitrary ortho basis
 
-        # if the desired velocity is too small, we risk numerical issue, we have converge (or sadle point)
+        # if the desired velocity is too small,
+        # we risk numerical issue, we have converge (or sadle point)
         if np.linalg.norm(x_dot_des) < EPSILON:
             # we just return the previous damping matrix
             print("Carefull, risk of num. issues")
@@ -263,7 +264,6 @@ class Simulated:
         return D_tot
 
     def compute_D_matrix_wrt_DS(self, x_dot_des):
-
         # DEPRECATED
         if True:
             return
