@@ -208,7 +208,8 @@ class ObsstacleAwarePassiveCont(Node):
 
         if self.is_obstacle_aware:
             # linear compunent are computed with new method
-            D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel, self.data_handler)
+            # D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel, self.data_handler)
+            D[:3, :3] = self.sim.compute_D(xyz, lin_vel, des_lin_vel)
         else:
             # Linear damping
             D_linear = np.diag(
@@ -263,6 +264,32 @@ class ObsstacleAwarePassiveCont(Node):
         # Update Damping-matrix based on desired velocity
         self.update_dissipative_controller(desired_twist, state.ee_state)
 
+        if self.data_handler is not None:
+            D_matrix = self.ctrl_dissipative.get_parameter_value("damping", D)
+            self.data_handler["D"].append(D_matrix[:3, :3])
+
+            self.data_handler["pos"].append(state.ee_state.get_position())
+            self.data_handler["vel"].append(state.ee_state.get_linear_velocity())
+            self.data_handler["des_vel"].append(desired_twist.get_linear_velocity())
+
+            # Compute minimal distance to obstacles
+            # get the normals and distance to the obstacles
+            obs_normals_list = np.empty((DIM, 0))
+            obs_dist_list = np.empty(0)
+            for obs in self.obstacle_env:
+                # gather the parameters wrt obstacle i
+                normal = obs.get_normal_direction(x, in_obstacle_frame=False).reshape(
+                    DIM, 1
+                )
+                obs_normals_list = np.append(obs_normals_list, normal, axis=1)
+
+                d = obs.get_gamma(x, in_obstacle_frame=False) - 1
+                obs_dist_list = np.append(obs_dist_list, d)
+
+            self.data_handler["normals"].append(obs_normals_list)
+            self.data_handler["dists"].append(obs_dist_list)
+
+        # Update data
         cmnd_dissipative = self.ctrl_dissipative.compute_command(
             desired_twist, state.ee_state, state.jacobian
         )
@@ -330,6 +357,7 @@ if (__name__) == "__main__":
         "des_vel": [],
         "normals": [],
         "dists": [],
+        "forces": [],
     }
 
     controller = ObsstacleAwarePassiveCont(
@@ -343,7 +371,6 @@ if (__name__) == "__main__":
 
     try:
         rclpy.spin(controller)
-
     except KeyboardInterrupt:
         pass
 

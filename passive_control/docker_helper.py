@@ -102,7 +102,7 @@ class Simulated:
             obstacle_environment=self.obstacle_environment,
         )
 
-    def compute_D(self, x, xdot, x_dot_des, data_handler):
+    def compute_D(self, x, xdot, x_dot_des, data_handler=None):
         """
         compute Damping matrix
         """
@@ -254,12 +254,13 @@ class Simulated:
         D_tot = (1 - weight) * D_DS + weight * D_obs
         self.D = D_tot
 
-        data_handler["D"].append(D_tot)
-        data_handler["pos"].append(x)
-        data_handler["vel"].append(xdot)
-        data_handler["des_vel"].append(x_dot_des)
-        data_handler["normals"].append(obs_normals_list)
-        data_handler["dists"].append(obs_dist_list)
+        if data_handler is not None:
+            data_handler["D"].append(D_tot)
+            data_handler["pos"].append(x)
+            data_handler["vel"].append(xdot)
+            data_handler["des_vel"].append(x_dot_des)
+            data_handler["normals"].append(obs_normals_list)
+            data_handler["dists"].append(obs_dist_list)
 
         return D_tot
 
