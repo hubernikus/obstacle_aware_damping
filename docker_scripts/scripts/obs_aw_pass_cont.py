@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 
@@ -95,8 +97,10 @@ class ObsstacleAwarePassiveCont(Node):
         print("First state recieved.")
 
         # redifinned later
-        self.attractor_A = np.array([0.4, -0.5, 0.25])
-        self.attractor_B = np.array([0.4, 0.5, 0.25])
+        # self.attractor_A = np.array([0.4, -0.5, 0.25])
+        # self.attractor_B = np.array([0.4, 0.5, 0.25])
+        self.attractor_A = np.array([0.26, -0.53, 0.334])
+        self.attractor_B = np.array([0.26, 0.53, 0.334])
         self.attractor_position = self.attractor_A
         self.attractor_quaternion = np.array([0.0, 1.0, 0.0, 0.0])
 
@@ -265,7 +269,10 @@ class ObsstacleAwarePassiveCont(Node):
         self.update_dissipative_controller(desired_twist, state.ee_state)
 
         if self.data_handler is not None:
-            D_matrix = self.ctrl_dissipative.get_parameter_value("damping", D)
+            DIM = 3
+            x = state.ee_state.get_position()
+
+            D_matrix = self.ctrl_dissipative.get_parameter_value("damping")
             self.data_handler["D"].append(D_matrix[:3, :3])
 
             self.data_handler["pos"].append(state.ee_state.get_position())
@@ -290,6 +297,7 @@ class ObsstacleAwarePassiveCont(Node):
             self.data_handler["dists"].append(obs_dist_list)
 
         # Update data
+        # desired_twist.set_linear_velocity(np.zeros(3))
         cmnd_dissipative = self.ctrl_dissipative.compute_command(
             desired_twist, state.ee_state, state.jacobian
         )
@@ -341,15 +349,20 @@ class ObsstacleAwarePassiveCont(Node):
 
     def destroy_node(self) -> None:
         df = pd.DataFrame.from_dict(self.data_handler, orient="index").transpose()
-        df.to_csv("test.csv")
+        now = datetime.now()
+        dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
+        df.to_csv(f"recording_{dt_string}.csv")
+        print("[INFO] Writing to file successful.")
         super().destroy_node()
 
 
 if (__name__) == "__main__":
     print("[INFO] Starting Cartesian Damping controller  ...")
     rclpy.init()
-    robot_interface = RobotInterface("*:1601", "*:1602")
+    # robot_interface = RobotInterface("*:1601", "*:1602")
+    robot_interface = RobotInterface.from_id(17)
 
+    is_osbtacle_aware = True
     data_handler = {
         "D": [],
         "pos": [],
@@ -357,14 +370,14 @@ if (__name__) == "__main__":
         "des_vel": [],
         "normals": [],
         "dists": [],
-        "forces": [],
+        "controller: [obstacle aware]": [is_osbtacle_aware],
     }
 
     controller = ObsstacleAwarePassiveCont(
         robot=robot_interface,
         freq=100,
         is_simulation=False,
-        is_obstacle_aware=True,
+        is_obstacle_aware=is_osbtacle_aware,
         # is_obstacle_aware=False,
         data_handler=data_handler,
     )

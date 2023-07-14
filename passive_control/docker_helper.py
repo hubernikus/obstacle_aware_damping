@@ -43,9 +43,9 @@ class Simulated:
                 axes_length=np.array([0.19] * 3),
                 linear_velocity=np.zeros(3),
                 margin_absolut=0.12,
-                distance_scaling=5.0,
+                distance_scaling=10.0,
             ),
-            obstacle_id=21,
+            obstacle_id=1025,
         )
         self.obstacle_environment[-1].set_reference_point(
             np.array([0, 0, -0.09]), in_global_frame=False
@@ -81,9 +81,10 @@ class Simulated:
         # FOR SIM
         # self.obstacle_environment.visualization_handler = PybulletHandler(self.obstacle_environment)
         # FOR REAL ROBOT
-        self.obstacle_environment.visualization_handler = RvizHandler(
-            self.obstacle_environment
-        )
+        # self.obstacle_environment.visualization_handler = RvizHandler(
+        #     self.obstacle_environment
+        # )
+        self.obstacle_environment.visualization_handler = RvizHandler()
 
         return self.obstacle_environment
 
