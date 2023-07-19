@@ -1,4 +1,3 @@
-import copy
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +11,9 @@ import matplotlib.pyplot as plt
 from vartools.filter import filter_moving_average
 
 from dynamic_obstacle_avoidance.obstacles import Obstacle
+from dynamic_obstacle_avoidance.obstacles import CuboidXd as Cuboid
 from dynamic_obstacle_avoidance.containers import ObstacleContainer
+from dynamic_obstacle_avoidance.visualization import plot_obstacles
 
 from passive_control.controller import Controller
 from passive_control.controller import PassiveDynamicsController
@@ -20,6 +21,54 @@ from passive_control.controller import ObstacleAwarePassivController
 import passive_control.magic_numbers_and_enums as mn
 
 from passive_control.analysis import clean_all
+
+# from passive_control.docker_helper import Simulated
+
+
+def get_actual_distance(
+    distance: float,
+    margin_absolut: float = 0.12,
+    distance_scaling: float = 10.0,
+    boundary_power_factor: float = 1.0,
+    center_position: np.ndarray = np.array([0.0, 0.0, 0.0]),
+    positions: Optional[np.ndarray] = None,
+):
+    """Computes the distance minus the margin.
+    Use obstacle-values used in experiment, and invert gamma-computation.
+
+    center_position: approximated center-position (real one not known)
+    """
+    distance = copy.deepcopy(distance)
+    ind_negative = distance < 0
+
+    # print(positions)
+
+    if np.sum(ind_negative):
+        # gamma = distance_center / (distance_center - distance_surface)
+        # gamma = gamma**boundary_power_factor
+
+        # => (distance_center - distance_surface) = distance_center / gamma
+        # => (distance_center - distance_center / gamma) =  = distance_surface
+        distance[ind_negative] = distance[ind_negative] + 1
+
+        if positions is not None:
+            distances_center = np.linalg.norm(
+                positions[:, ind_negative]
+                - np.tile(center_position, (np.sum(ind_negative), 1)).T,
+                axis=0,
+            )
+        else:
+            distances_center = 1
+
+        distance[ind_negative] = distance[ind_negative] ** (1.0 / boundary_power_factor)
+        distance[ind_negative] = (
+            distances_center - distances_center / distance[ind_negative]
+        )
+
+    distance_scaled = distance / distance_scaling
+    distance_without_margin = distance_scaled + margin_absolut
+
+    return distance_without_margin
 
 
 def plot_position_intervals_xyz(
@@ -30,9 +79,15 @@ def plot_position_intervals_xyz(
 ):
     traj_label = datahandler.label
     dimension = 3
+
     positions = np.zeros((len(datahandler.dataframe["pos"]), dimension))
+    velocities = np.zeros((len(datahandler.dataframe["vel"]), dimension))
+    desired_vel = np.zeros((len(datahandler.dataframe["des_vel"]), dimension))
+
     for ii in range(len(datahandler.dataframe["pos"])):
         positions[ii, :] = datahandler.dataframe["pos"][ii]
+        velocities[ii, :] = datahandler.dataframe["vel"][ii]
+        desired_vel[ii, :] = datahandler.dataframe["des_vel"][ii]
 
     min_x = min(positions[:, 0])
     max_x = max(positions[:, 0])
@@ -88,6 +143,45 @@ def plot_position_intervals_xyz(
             # lw=0,
         )
 
+    if plot_velocities:
+        time_step_display = 140
+        vel_scaling = 0.3
+        arrow_kwargs = {
+            "width": 0.01,
+            "linewidth": 1.0,
+            "edgecolor": "black",
+            "zorder": 3,
+        }
+
+        for ii, it_traj in enumerate(plot_indeces):
+            interval = datahandler.intervals[it_traj]
+            for ii in range(100):
+                if ii * time_step_display >= len(interval):
+                    break
+
+                it = interval[ii * time_step_display]
+
+                ax.arrow(
+                    positions[it, 1],
+                    positions[it, 2],
+                    velocities[it, 1] * vel_scaling,
+                    velocities[it, 2] * vel_scaling,
+                    facecolor=datahandler.color,
+                    alpha=0.8,
+                    **arrow_kwargs,
+                )
+
+                ax.arrow(
+                    positions[it, 1],
+                    positions[it, 2],
+                    desired_vel[it, 1] * vel_scaling,
+                    desired_vel[it, 2] * vel_scaling,
+                    facecolor=datahandler.secondary_color,
+                    linestyle="--",
+                    **arrow_kwargs,
+                )
+                ax.plot(positions[it, 1], positions[it, 2], "ko", zorder=3)
+
     # ax.legend()
 
     # ax.set_xlabel("Step")
@@ -105,10 +199,15 @@ def import_dataframe(
 
 def extract_sequences_intervals_experiment_two(
     dataframe,
-    y_range_start=[0.27, 0.29],
-    x_start=0.42,
+    # z_range_start=[0.27, 0.295],
+    y_start=0.395,
+    # y_vel_max=0.25,
+    y_vel_max=0.15,
+    length_minimum=200,
     visualize=False,
     n_positive_velocities=5,
+    end_cutoff=15,
+    number_of_return_trajectories: Optional[int] = 10,
 ):
     dimension = 3
     positions = np.zeros((len(dataframe["pos"]), dimension))
@@ -118,8 +217,19 @@ def extract_sequences_intervals_experiment_two(
         velocities[ii, :] = dataframe["vel"][ii]
 
     if visualize:
-        fig, ax = plt.subplots()
-        ax.plot(positions[:, 1])
+        fig, axs = plt.subplots(3, 1)
+        for ax in axs:
+            ax.grid()
+
+        axs[0].plot(positions[:, 0], label="Position x [m]")
+        axs[2].plot(positions[:, 2], label="Position z [m]")
+        ax = axs[1]
+
+        # fig, ax = plt.subplots()
+        ax.plot(positions[:, 1], label="Position y [m]")
+        ax.plot(velocities[:, 1], label="Velocity y [m]")
+
+        ax.plot([0, len(positions[:, 1])], [0, 0], ":", color="black")
         # ax.plot(ind_highs)
         # y_lim = ax.get_ylim()
         # for ii in range(interval_explicit.shape[0]):
@@ -127,49 +237,73 @@ def extract_sequences_intervals_experiment_two(
         # ax.set_ylim(y_lim)
 
     # In between y, close to x
-    it_start = np.logical_and(
-        y_range_start[0] < positions[:, 1], positions[:, 1] < y_range_start[1]
-    )
-    it_start = np.logical_and(it_start, np.isclose(positions[:, 0], x_start, atol=1e-1))
+    # it_start = np.logical_and(
+    #     z_range_start[0] < positions[:, 2], positions[:, 2] < z_range_start[1]
+    # )
+
+    it_start = positions[:, 1] > y_start
     it_start_explicit = np.arange(positions.shape[0])[it_start]
+    delta_start = it_start_explicit[1:] - it_start_explicit[:-1]
+    # Always take last one
+    it_start_explicit = it_start_explicit[np.hstack((delta_start > 5, True))]
+
+    positions_filtered = filter_moving_average(positions[:, 1], 5)
+    vel_from_pos = (positions_filtered - np.roll(positions_filtered, 1)) * 100
+
+    # if visualize:
+    if False:
+        plt.close("all")
+        fig, ax2 = plt.subplots()
+        ax2.plot(vel_from_pos)
+        ax2.set_ylim([-1.0, 1.0])
+
+    it_end = vel_from_pos > y_vel_max
+    it_end_explicit = np.arange(it_end.shape[0])[it_end]
 
     # Extract xx number of consecutive positive (y-direction-)velocities
-    it_positive = velocities[:, 1] >= 0
-    matr_positive = np.zeros((n_positive_velocities, it_positive.shape[0]))
-    for ii in range(matr_positive.shape[0]):
-        matr_positive[ii, :] = np.roll(it_positive, (-1) * ii)
-    it_positive = np.sum(matr_positive, axis=0) == matr_positive.shape[0]
-    it_positive_explicit = np.arange(positions.shape[0])[it_positive]
+    # it_positive = velocities[:, 1] >= 0
+    # matr_positive = np.zeros((n_positive_velocities, it_positive.shape[0]))
+    # for ii in range(matr_positive.shape[0]):
+    #     matr_positive[ii, :] = np.roll(it_positive, (-1) * ii)
+    # it_positive = np.sum(matr_positive, axis=0) == matr_positive.shape[0]
+    # it_positive_explicit = np.arange(positions.shape[0])[it_positive]
 
     linekwargs = {"color": "gray"}
 
-    it_end = it_start_explicit[0]
+    it_end = 0
     intervals = []
-    for ii in range(100):
-        it_start = np.searchsorted(it_start_explicit, it_end)
-        breakpoint()
-        if it_start == 0:
+    for ii, ii_start in enumerate(it_start_explicit):
+        if visualize:
+            ax.plot([it_end, ii_start], [0, 0], **linekwargs)
+            ax.plot([ii_start, ii_start], [0, 1], **linekwargs)
+
+        if ii_start >= it_end_explicit[-1]:
             break
+
+        it_end_relative = np.searchsorted(it_end_explicit, ii_start)
+        it_end = it_end_explicit[it_end_relative]
+
+        # print("ii_start", ii_start)
+        # print("it_end", it_end)
+
+        if it_end - ii_start < length_minimum:
+            # Short sequence indicates robot-outage
+            continue
 
         if visualize:
-            ax.plot([it_end, it_start], [0, 0], **linekwargs)
-            ax.plot([it_start, it_start], [0, 1], **linekwargs)
+            ax.plot([ii_start, it_end], [1, 1], **linekwargs)
+            ax.plot([it_end, it_end], [1, 0], **linekwargs)
 
-        it_end = np.searchsorted(it_positive_explicit, it_start)
-        if it_end == 0:
-            break
-
-        print("it_start", it_start)
-        print("it_end", it_end)
-
-        ax.plot([it_start, it_end], [1, 1], **linekwargs)
-        ax.plot([it_end, it_end], [1, 0], **linekwargs)
-
-        interval = np.arange(it_start, it_end)
+        interval = np.arange(ii_start, it_end - end_cutoff)
 
         # Cut some off at the end to avoid the recovery-peak
         intervals.append(interval)
 
+    if number_of_return_trajectories is not None:
+        if len(intervals) < number_of_return_trajectories:
+            raise ValueError("Too few trajectories.")
+        else:
+            intervals = intervals[:number_of_return_trajectories]
     return intervals
 
 
@@ -354,20 +488,31 @@ def plot_distance_obstacle(
     traj_label = copy.deepcopy(datahandler.label)
 
     dimension = 3
+    positions = np.zeros((3, len(datahandler.dataframe["dists"])))
     distances = np.zeros((len(datahandler.dataframe["dists"])))
     for jj in range(len(datahandler.dataframe["dists"])):
+        positions[:, jj] = datahandler.dataframe["pos"][jj]
         distances[jj] = datahandler.dataframe["dists"][jj]
+
+    distances = get_actual_distance(
+        distances,
+        positions=positions,
+        margin_absolut=main_obstacle.margin_absolut,
+        distance_scaling=main_obstacle.distance_scaling,
+        center_position=main_obstacle.center_position,
+    )
 
     # distances_norm = np.linalg.norm(distances, axis=1)
     # breakpoint()
     for ii, it_traj in enumerate(plot_indeces):
+        # print(it_traj)
         # for ii, interval in enumerate(datahandler.intervals):
-        interval = datahandler.intervals[ii]
+        interval = datahandler.intervals[it_traj]
         ax.plot(
             datahandler.time_step * np.arange(interval.shape[0]),
             distances[interval],
             color=datahandler.color,
-            linestyle=datahandler.linestyles[ii],
+            linestyle=datahandler.linestyles[ii % len(datahandler.linestyles)],
             linewidth=2.0,
             label=traj_label,
         )
@@ -406,6 +551,7 @@ def plot_distance_obstacle(
             mean_value,
             color=datahandler.color,
             label=traj_label,
+            **kwargs_meanline,
         )
 
     min_distances = []
@@ -418,30 +564,50 @@ def plot_distance_obstacle(
     return min_distances
 
 
-def import_dataframes():
+def import_second_experiment(n_traj_max=10):
+    intervals = []
+
     folder = "recording_2022_07"
     dataframe = import_dataframe("recording_14-07-2023_15-28-39.csv", folder=folder)
     # intervals = extract_sequences_intervals(dataframe, visualize=False)
     intervals = extract_sequences_intervals_experiment_two(dataframe, visualize=True)
-    data_nodamping = DataStorer(dataframe, intervals, color="gray", label="Dynamics")
-
-    if True:
-        return (None, None, None)
+    # intervals = ]
+    data_nodamping = DataStorer(
+        dataframe,
+        intervals,
+        # color="red",
+        color="#B0050B",
+        secondary_color="#AB4346",
+        label="Dynamics preserving",
+        # it_nominal=2,
+        # it_nominal=4,
+        it_nominal=8,
+    )
 
     dataframe = import_dataframe("recording_14-07-2023_15-32-02.csv", folder=folder)
-    intervals = extract_sequences_intervals(dataframe, visualize=False)
+    intervals = extract_sequences_intervals_experiment_two(dataframe, visualize=True)
     data_damped = DataStorer(
-        dataframe, intervals, color="blue", it_nominal=1, label="Obstacle"  # "Dynamcis"
+        dataframe,
+        intervals,
+        # color=(0, 0, 200),
+        # secondary_color=(100, 100, 200),
+        color="#084263",
+        secondary_color="#4F778F",
+        it_nominal=8,
+        # it_nominal=1,
+        label="Obstacle aware",  # "Dynamcis"
     )
 
     dataframe = import_dataframe("recording_14-07-2023_15-34-32.csv", folder=folder)
-    intervals = extract_sequences_intervals(dataframe, visualize=False)
+    intervals = extract_sequences_intervals_experiment_two(dataframe, visualize=True)
     data_no_interaction = DataStorer(
         dataframe,
         intervals,
-        color="green",
+        # secondary_color="gray",
+        color="#696969",
+        secondary_color="#808080",
         it_nominal=1,
-        label="No interaction",  # "Obstacle"
+        label="Undisturbed",
     )
 
     return (data_no_interaction, data_nodamping, data_damped)
@@ -451,7 +617,8 @@ def import_dataframes():
 class DataStorer:
     dataframe: object
     intervals: object
-    color: str
+    color: str | tuple[float | int]
+    secondary_color: str | tuple[float | int]
     label: str
 
     linestyles: list = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
@@ -510,9 +677,8 @@ def plot_all_forces(datahandler, controller: Controller, ax, plot_indeces=[]):
             ax_label = None
 
 
-def plot_and_compute_force(
+def plot_forces(
     datahandler,
-    controller: Controller,
     ax,
     plot_indeces: list = [],
     plot_mean_force=False,
@@ -521,25 +687,15 @@ def plot_and_compute_force(
     dimension = 3
 
     forces = np.zeros((len(datahandler.dataframe["des_vel"]), dimension))
-    normals = np.zeros((len(datahandler.dataframe["des_vel"]), dimension))
     for jj in range(len(datahandler.dataframe["des_vel"])):
         velocity_desired = datahandler.dataframe["des_vel"][jj]
         velocity = datahandler.dataframe["vel"][jj]
-        position = datahandler.dataframe["pos"][jj]
+        D = datahandler.dataframe["D"][jj]
 
-        if hasattr(controller, "environment"):
-            # Recreate environment to compute the correct force
-            controller.environment[0].normal = datahandler.dataframe["normals"][jj]
-            controller.environment[0].distance = datahandler.dataframe["dists"][jj]
-
-        forces[jj, :] = controller.compute_force(
-            velocity=velocity,
-            desired_velocity=velocity_desired,
-            position=position,
-        )
+        forces[jj, :] = D @ (velocity_desired - velocity)
 
     forces_norm = np.linalg.norm(forces, axis=1)
-    forces_norm = filter_moving_average(forces_norm)
+    # forces_norm = filter_moving_average(forces_norm, 3)
 
     max_forces = []
     for ii, it_traj in enumerate(plot_indeces):
@@ -547,17 +703,24 @@ def plot_and_compute_force(
         interval = datahandler.intervals[it_traj]
 
         # forces_norm = np.linalg.norm(forces[interval, :], axis=1)
+        tot_forces = forces_norm[interval]
+        # tot_forces = filter_moving_average(tot_forces, 5)
         ax.plot(
             datahandler.time_step * np.arange(interval.shape[0]),
-            forces_norm[interval],
+            tot_forces,
             color=datahandler.color,
-            linestyle=datahandler.linestyles[ii],
+            linestyle=datahandler.linestyles[ii % len(datahandler.linestyles)],
             label=traj_label,
+            zorder=2,
         )
 
         traj_label = None
 
     if plot_mean_force:
+        # Use logarithmic value, add margin to avoid errors
+        margin_force = 1e-9
+        forces_norm = np.log(forces_norm + margin_force)
+
         len_max = 0
         for ii, interval in enumerate(datahandler.intervals):
             len_max = max(interval.shape[0], len_max)
@@ -569,8 +732,10 @@ def plot_and_compute_force(
             mean_force[: interval.shape[0]] = (
                 mean_force[: interval.shape[0]] + forces_norm[interval]
             )
+
         mean_force = mean_force / ind_count
 
+        # Set default values when a trajectory is short
         force_values = np.ones((len(datahandler.intervals), len_max)) * mean_force
         for ii, interval in enumerate(datahandler.intervals):
             force_values[ii, : interval.shape[0]] = forces_norm[interval]
@@ -578,18 +743,23 @@ def plot_and_compute_force(
         std_force = np.std(force_values, axis=0)
         ax.fill_between(
             datahandler.time_step * np.arange(mean_force.shape[0]),
-            mean_force - std_force,
-            mean_force + std_force,
+            np.exp(mean_force - std_force) + margin_force,
+            np.exp(mean_force + std_force) + margin_force,
             alpha=0.3,
             color=datahandler.color,
             zorder=-1,
         )
         ax.plot(
             datahandler.time_step * np.arange(mean_force.shape[0]),
-            mean_force,
+            np.exp(mean_force) + margin_force,
+            ":",
             color=datahandler.color,
+            alpha=0.8,
             label=traj_label,
+            zorder=1,
         )
+
+    # breakpoint()
 
     max_forces = []
     for ii, interval in enumerate(datahandler.intervals):
@@ -599,7 +769,9 @@ def plot_and_compute_force(
     return max_forces
 
 
-def plot_forces(data_no_interaction, data_nodamping, data_damped, save_figure=False):
+def plot_forces_all(
+    data_no_interaction, data_nodamping, data_damped, save_figure=False
+):
     dimension = 3
 
     lambda_DS = 100.0
@@ -610,7 +782,7 @@ def plot_forces(data_no_interaction, data_nodamping, data_damped, save_figure=Fa
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Force [N]")
 
-    ax.set_xlim([0, 4.5])
+    ax.set_xlim(x_lim_duration)
     # ax.set_ylim([-1.5, 5.0])
 
     x_vals = ax.get_xlim()
@@ -619,47 +791,37 @@ def plot_forces(data_no_interaction, data_nodamping, data_damped, save_figure=Fa
     ax.grid("on")
 
     # # No interaction
-    controller = PassiveDynamicsController(
-        lambda_dynamics=lambda_DS, lambda_remaining=lambda_perp, dimension=3
-    )
-    max_forces = plot_and_compute_force(
+    max_forces = plot_forces(
         data_no_interaction,
-        controller,
         ax,
         plot_mean_force=True,
-        traj_label="No disturbance",
+        # plot_indeces=[2],
+        plot_indeces=[data_no_interaction.it_nominal],
+        traj_label=data_no_interaction.label,
     )
     print(f"No-Interaction Force: {np.mean(max_forces)} \pm {np.std(max_forces)} ")
 
     # # No damping
-    controller = PassiveDynamicsController(
-        lambda_dynamics=lambda_DS,
-        lambda_remaining=lambda_perp,
-        dimension=3,
-    )
-    max_forces = plot_and_compute_force(
+    max_forces = plot_forces(
         data_nodamping,
-        controller,
         ax,
+        plot_mean_force=True,
+        # plot_indeces=np.arange(len(data_nodamping.intervals)),
+        # plot_indeces=[3],
         plot_indeces=[data_nodamping.it_nominal],
-        traj_label="DS following",
+        traj_label=data_nodamping.label,
     )
     print(f"No-Damping Force: {np.mean(max_forces)} \pm {np.std(max_forces)} ")
 
     # No ObstacleAwarePassivController
-    controller = ObstacleAwarePassivController(
-        lambda_dynamics=lambda_DS,
-        lambda_remaining=lambda_perp,
-        lambda_obstacle=lambda_obs,
-        dimension=3,
-        environment=ObstacleContainer([DummyObstacle()]),
-    )
-    max_forces = plot_and_compute_force(
+    max_forces = plot_forces(
         data_damped,
-        controller,
         ax,
+        # plot_indeces=[8],
         plot_indeces=[data_damped.it_nominal],
-        traj_label="Obstacle aware",
+        plot_mean_force=True,
+        # plot_indeces=np.arange(len(data_damped.intervals)),
+        traj_label=data_damped.label,
     )
     print(f"Obstacle-Aware Force: {np.mean(max_forces)} \pm {np.std(max_forces)} ")
 
@@ -753,7 +915,8 @@ def plot_positions_single_graph(
     ax.set_ylabel("Position z [m]")
     ax.set_aspect("equal", adjustable="box")
 
-    ax.set_xlim([0.455, -0.402])
+    # ax.set_xlim([0.455, -0.402])
+    ax.set_ylim([-0.2, 0.4])
     ax.set_ylim([0.05, 0.36])
 
     x_vals = ax.get_xlim()
@@ -779,12 +942,13 @@ def plot_positions_single_graph(
 def plot_positions_single_graph(
     data_no_interaction, data_nodamping, data_damped, save_figure=False
 ):
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=(figsize[0], figsize[1] * 2))
     ax.set_xlabel("Position y [m]")
     ax.set_ylabel("Position z [m]")
     ax.set_aspect("equal", adjustable="box")
 
-    # ax.set_xlim([0.455, -0.402])
+    ax.set_xlim([-0.4, 0.40])
+    ax.set_ylim([0.05, 0.45])
     # ax.set_ylim([0.05, 0.36])
 
     x_vals = ax.get_xlim()
@@ -792,11 +956,38 @@ def plot_positions_single_graph(
     # ax.plot(x_vals, [0, 0], ":", color="#8b0000", linewidth=2.0)
     ax.grid("on")
 
-    # plot_position_intervals_xyz(data_no_interaction, ax=ax, plot_all=True)
-    # plot_position_intervals_xyz(data_nodamping, ax=ax, plot_all=True)
-    plot_position_intervals_xyz(data_damped, ax=ax, plot_all=True)
+    plot_position_intervals_xyz(
+        data_no_interaction,
+        ax=ax,
+        plot_indeces=[data_no_interaction.it_nominal],
+        # plot_all=True,
+    )
+    plot_position_intervals_xyz(
+        data_nodamping,
+        ax=ax,
+        plot_indeces=[data_nodamping.it_nominal],
+    )
+    plot_position_intervals_xyz(
+        data_damped,
+        ax=ax,
+        plot_indeces=[data_damped.it_nominal],
+    )
 
-    plt.legend(loc="lower left", ncol=3)
+    obstacle2d = Cuboid(
+        center_position=main_obstacle.center_position[1:],
+        margin_absolut=main_obstacle.margin_absolut,
+        axes_length=main_obstacle.axes_length[1:],
+    )
+
+    plot_obstacles(
+        obstacle_container=[obstacle2d],
+        x_lim=ax.get_xlim(),
+        y_lim=ax.get_ylim(),
+        ax=ax,
+    )
+
+    # plt.legend(loc="lower left", ncol=3)
+    plt.legend(loc="lower right")
 
     if save_figure:
         figname = "robot_arm_trajectory_xyz"
@@ -824,25 +1015,32 @@ def plot_closests_distance(
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Distance [m]")
 
-    ax.set_xlim([0, 7.2])
-    ax.set_ylim([-1.5, 4.5])
+    ax.set_xlim(x_lim_duration)
+    ax.set_ylim([-0.2, 0.4])
 
     x_vals = ax.get_xlim()
 
-    ax.plot(x_vals, [0, 0], ":", color="#8b0000", linewidth=2.0)
+    # ax.plot(x_vals, [0, 0], ":", color="#8b0000", linewidth=2.0)
+    ax.plot(x_vals, [0, 0], ":", color="black", linewidth=2.0)
     ax.grid("on")
 
     min_distances_no_int = plot_distance_obstacle(
-        data_no_interaction, ax=ax, plot_mean_value=True
+        data_no_interaction,
+        ax=ax,
+        plot_mean_value=True,
+        plot_indeces=[data_no_interaction.it_nominal],
     )
     print(
         f"Distance [NoDist]: {np.mean(min_distances_no_int)} "
         + f" \pm {np.std(min_distances_no_int)}"
     )
+
     min_distances_ds = plot_distance_obstacle(
         data_nodamping,
         ax=ax,
-        plot_indeces=[data_nodamping.it_nominal]
+        plot_indeces=[data_nodamping.it_nominal],
+        # plot_indeces=np.arange(len(data_nodamping.intervals)),
+        plot_mean_value=True
         # plot_indeces=np.arange(3),
     )
 
@@ -854,7 +1052,9 @@ def plot_closests_distance(
     min_distance_obs_aware = plot_distance_obstacle(
         data_damped,
         ax=ax,
-        plot_indeces=[data_damped.it_nominal]
+        plot_indeces=[data_damped.it_nominal],
+        plot_mean_value=True,
+        # plot_indeces=np.arange(len(data_damped.intervals)),
         # plot_indeces=np.arange(3),
     )
     print(
@@ -905,21 +1105,50 @@ if (__name__) == "__main__":
     figtype = ".pdf"
     figsize = (6.0, 2.2)
 
+    x_lim_duration = [0, 3.5]
+
+    kwargs_meanline = {"linestyle": ":", "alpha": 0.8}
+
+    #
+    # simulation_handler = Simulated()
+    # obs_env = simulation_handler.create_env(
+    #     obs_pos=np.array([0.4, 0, 0]),
+    #     obs_axes_lenght=np.array([0.20] * 3),
+    #     obs_vel=np.zeros(3),
+    #     no_obs=False,
+    # )
+
+    # This obstacle is for represetnation purposes only.
+    # The real obstacle did not have the exact same position for all trajectories
+    main_obstacle = Cuboid(
+        axes_length=np.array([0.20] * 3),
+        margin_absolut=0.12,
+        # axes_length=np.array([0.30] * 3),
+        # margin_absolut=0.04,
+        center_position=np.array([0.35, -0.00, 0.16]),
+        distance_scaling=10.0,
+    )
+
     # Only import data once... -> keep in local workspace after
-    reimport_data = True
+    reimport_data = False
     if reimport_data or "data_no_interaction" not in locals():
-        print("Importing data-sequences.")
-        (data_no_interaction, data_nodamping, data_damped) = import_dataframes()
+        print("(Re-)Importing data-sequences.")
+        (data_no_interaction, data_nodamping, data_damped) = import_second_experiment()
+
+    plt.close("all")
 
     # plt.close("all")
     plt.ion()
 
     # main(data_no_interaction, data_nodamping, data_damped)
 
-    # plot_closests_distance(data_no_interaction, data_nodamping, data_damped)
-    # plot_forces(data_no_interaction, data_nodamping, data_damped, save_figure=True)
-
-    # plot_positions_single_graph(data_no_interaction, data_nodamping, data_damped)
+    plot_closests_distance(
+        data_no_interaction, data_nodamping, data_damped, save_figure=True
+    )
+    plot_forces_all(data_no_interaction, data_nodamping, data_damped, save_figure=True)
+    plot_positions_single_graph(
+        data_no_interaction, data_nodamping, data_damped, save_figure=True
+    )
 
     # plot_positions(data_no_interaction, data_nodamping, data_damped)
     # plot_velocities(data_no_interaction, data_nodamping, data_damped)

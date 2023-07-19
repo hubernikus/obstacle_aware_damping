@@ -282,7 +282,7 @@ class ObsstacleAwarePassiveCont(Node):
             # Compute minimal distance to obstacles
             # get the normals and distance to the obstacles
             obs_normals_list = np.empty((DIM, 0))
-            obs_dist_list = np.empty(0)
+            obs_dist_list = np.empty(0)  #
             for obs in self.obstacle_env:
                 # gather the parameters wrt obstacle i
                 normal = obs.get_normal_direction(x, in_obstacle_frame=False).reshape(
@@ -290,7 +290,12 @@ class ObsstacleAwarePassiveCont(Node):
                 )
                 obs_normals_list = np.append(obs_normals_list, normal, axis=1)
 
-                d = obs.get_gamma(x, in_obstacle_frame=False) - 1
+                # d = obs.get_gamma(x, in_obstacle_frame=False) - 1
+                d = obs.get_distance_to_surface(
+                    position=x,
+                    in_obstacle_frame=False,
+                    margin_absolut=obs.margin_absolut,
+                )
                 obs_dist_list = np.append(obs_dist_list, d)
 
             self.data_handler["normals"].append(obs_normals_list)
