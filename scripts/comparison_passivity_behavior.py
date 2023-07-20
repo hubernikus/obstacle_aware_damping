@@ -51,9 +51,10 @@ def integrate_agent_trajectory(
         if not (ii + 1) % 10:
             print(f"Step {ii+1} / {it_max}")
 
-        velocity = dynamics(agent.position)
-        force = controller.compute_control_force(
-            agent.position, agent.velocity, desired_velocity=velocity
+        force = controller.compute_force(
+            velocity=agent.velocity,
+            desired_velocity=dynamics(agent.position),
+            position=agent.position,
         )
 
         for disturbance in disturbance_list:
@@ -137,7 +138,8 @@ def plot_disturbances(
                 direction[1] * arrow_scaling,
                 width=arrow_width,
                 # color="r",
-                color="#C73200",
+                # color="#C73200",
+                color="#767820",
                 label=("Disturbances" if do_label else None),
                 zorder=zorder_arrow,
             )
@@ -330,8 +332,8 @@ def plot_passivity_comparison(
             positions[1, :],
             "--",
             # color="#135e08",
-            color="#04D9AC",
-            label=("Dynamics preserving" if do_label else None),
+            color=plot_setup["dynamics"].color,
+            label=(plot_setup["dynamics"].label if do_label else None),
             **trajectory_kwargs,
         )
 
@@ -358,8 +360,10 @@ def plot_passivity_comparison(
             positions[1, :],
             "--",
             # color="blue",
-            color="#1132F0",
-            label=("Obstacle aware" if do_label else None),
+            # color="#1132F0",
+            # label=("Obstacle aware" if do_label else None),
+            color=plot_setup["obstacle"].color,
+            label=(plot_setup["obstacle"].label if do_label else None),
             **trajectory_kwargs,
         )
 
@@ -457,14 +461,17 @@ def plot_multiple_avoider(save_figure=False):
     ax.legend()
 
     if save_figure:
-        figtype = ".svg"
         figname = "multi_obstacle_with_damping"
         fig.savefig("figures/" + figname + figtype, bbox_inches="tight", dpi=300)
 
 
 if (__name__) == "__main__":
+    figtype = ".pdf"
+
     plt.close("all")
     plt.ion()
+
+    from scripts.plot_setup import plot_setup
 
     # plot_passivity_comparison()
     plot_multiple_avoider(save_figure=True)

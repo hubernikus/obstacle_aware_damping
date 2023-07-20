@@ -24,6 +24,8 @@ class ObstacleAwarePassivController(Controller):
     )
 
     gamma_critical: float = 3.0
+    # Velocity at which the stiffness is increased to keep following the dynamics (or stay stagnant)
+    velocity_critical: float = 0.1
     dimension: int = 2
 
     _normals_to_obstacles: np.ndarray = np.zeros(0)
@@ -126,6 +128,10 @@ class ObstacleAwarePassivController(Controller):
 
         return total_matrix
 
+    def compute_zero_velocity_weight(self, desired_velocity: np.ndarray) -> float:
+        """Returns weight in [0, 1] which approaches 1 at zero velocity."""
+        return 1 - min(np.linalg.norm(desired_velocity) / self.velocity_critical, 1.0)
+
     def _compute_dynamics_damping(
         self,
         desired_velocity: np.ndarray,
@@ -143,7 +149,6 @@ class ObstacleAwarePassivController(Controller):
 
         perp_vector = (basis_matrix[:, 0] @ averaged_normal) * basis_matrix[:, 0]
         perp_vector = perp_vector - averaged_normal
-
         weight = min(
             1,
             (perp_vector.T @ perp_vector) ** power_weight
@@ -153,6 +158,9 @@ class ObstacleAwarePassivController(Controller):
         other_lambda = (
             weight * self.lambda_remaining + (1 - weight) * self.lambda_obstacle
         )
+
+        v_weight = self.compute_zero_velocity_weight(desired_velocity)
+        other_lambda = (1 - v_weight) * other_lambda + v_weight * self.lambda_dynamics
 
         damping_matrix = np.diag(
             np.hstack(
@@ -171,14 +179,9 @@ class ObstacleAwarePassivController(Controller):
         basis1 = averaged_normal / np.linalg.norm(averaged_normal)
 
         dotproduct = np.dot(basis1, desired_velocity)
-        if not dotproduct:  # Zero value
-            breakpoint()
-            # Not sure this is true ?!
-            return get_orthogonal_basis(basis1)
-
-        if dotproduct < 1:
+        if dotproduct < 1 and np.linalg.norm(desired_velocity):
             basis2 = desired_velocity - basis1 * dotproduct
-            basis2 = basis2 / basis2_norm
+            basis2 = basis2 / np.linalg.norm(basis2)
 
             if self.dimension == 2:
                 basis_matrix = np.vstack((basis1, basis2))
@@ -190,6 +193,12 @@ class ObstacleAwarePassivController(Controller):
             # Less important as all weights are equal
             basis_matrix = get_orthogonal_basis(basis1)
 
+        # Increase damping when approaching the attractor
+        weight_v = self.compute_zero_velocity_weight(desired_velocity)
+        lambda_remaining = (
+            1 - weight_v
+        ) * self.lambda_remaining + weight_v * self.lambda_dynamics
+
         # Set desired matrix values
         if current_velocity is not None:
             delta_velocity = desired_velocity - current_velocity
@@ -197,22 +206,28 @@ class ObstacleAwarePassivController(Controller):
                 # When correcting away from obstacle, be stiff (!)
                 lambda1 = self.lambda_obstacle
             else:
-                lambda1 = self.lambda_remaining
+                lambda1 = lambda_remaining
 
-        weight = abs(dotproduct / np.linalg.norm(desired_velocity))
-        lambda2 = (1 - weight) * self.lambda_dynamics + weight * self.lambda_remaining
+        if weight_v < 1:
+            weight_dp = abs(dotproduct / np.linalg.norm(desired_velocity))
+            lambda2 = (
+                1 - weight_dp
+            ) * self.lambda_dynamics + weight_dp * lambda_remaining
+        else:
+            lambda2 = lambda_remaining
+
         damping_matrix = np.diag(
             np.hstack(
                 (
                     lambda1,
                     lambda2,
-                    self.lambda_remaining * np.ones(self.dimension - 2),
+                    lambda_remaining * np.ones(self.dimension - 2),
                 )
             )
         )
 
         total_matrix = basis_matrix @ damping_matrix @ basis_matrix.T
-        # if np.any(np.isnan(total_matrix)):
-        #     breakpoint()
+        if np.any(np.isnan(total_matrix)):
+            breakpoint()
 
         return total_matrix
