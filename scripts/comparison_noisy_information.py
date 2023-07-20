@@ -103,7 +103,14 @@ class DataHandler:
 
 
 def compute_distances_and_positions(
-    std_noise_ranges, controller, avoider, environment, n_epoch, start_position
+    std_noise_ranges,
+    controller,
+    avoider,
+    environment,
+    n_epoch,
+    start_position,
+    it_max,
+    delta_time,
 ):
     dimension = start_position.shape[0]
 
@@ -113,7 +120,7 @@ def compute_distances_and_positions(
         # positions = []
         position_lists.append([])
 
-        for ii in range(n_epoch):
+        for it_epoch in range(n_epoch):
             agent = Agent(position=start_position, velocity=np.zeros(2))
 
             position_lists[-1].append(np.zeros((dimension, it_max + 1)))
@@ -131,20 +138,17 @@ def compute_distances_and_positions(
                     desired_velocity=velocity,
                 )
 
-                # breakpoint()
-
                 # Add position velocity noise
-                # agent.velocity += std_noise * np.random.randn(2)
+                agent.velocity += std_noise * np.random.randn(2)
 
                 agent.update_step(delta_time, control_force=force)
                 position_lists[-1][-1][:, tt + 1] = agent.position
-                distances[ii] = get_minimum_obstacle_distance(
+                distances[tt] = get_minimum_obstacle_distance(
                     agent.position, environment=environment
                 )
 
-            min_distances[it_noise, ii] = np.min(distances)
+            min_distances[it_noise, it_epoch] = np.min(distances)
     #     return min_distances
-
     return min_distances, position_lists
 
 
@@ -179,8 +183,23 @@ def multi_epoch_noisy_velocity(
         obstacle_environment=environment,
     )
 
+    std_noise_ranges = np.arange(n_grid_noise) * 0.05
+
+    min_distance_both = [None] * 2
+    position_lists_both = [None] * 2
     controller = PassiveDynamicsController(
         lambda_dynamics=lambda_DS, lambda_remaining=lambda_perp, dimension=2
+    )
+
+    min_distance_both[0], position_lists_both[0] = compute_distances_and_positions(
+        std_noise_ranges,
+        controller,
+        avoider,
+        environment,
+        n_epoch,
+        start_position,
+        it_max,
+        delta_time,
     )
 
     controller = ObstacleAwarePassivController(
@@ -191,10 +210,15 @@ def multi_epoch_noisy_velocity(
         environment=environment,
     )
 
-    std_noise_ranges = np.arange(n_grid_noise)
-
-    min_distances, position_lists = compute_distances_and_positions(
-        std_noise_ranges, controller, avoider, environment, n_epoch, start_position
+    min_distance_both[1], position_lists_both[1] = compute_distances_and_positions(
+        std_noise_ranges,
+        controller,
+        avoider,
+        environment,
+        n_epoch,
+        start_position,
+        it_max,
+        delta_time,
     )
 
     # def visualize_distances(min_distances, save_figure=False):
@@ -204,10 +228,9 @@ def multi_epoch_noisy_velocity(
     kwargs_meanline = {"linestyle": "-", "alpha": 1.0}
 
     fig, ax = plt.subplots(figsize=(6, 4))
-
-    traj = position_lists[-1][-1]
-    ax.plot(traj[0, :], traj[1, :], "-", color=plot_setup["obstacle"].color)
-    # breakpoint()
+    for positions_lists, key in zip(position_lists_both, ["dynamics", "obstacle"]):
+        traj = positions_lists[-1][-1]
+        ax.plot(traj[0, :], traj[1, :], "-", color=plot_setup[key].color, linewidth=2.0)
 
     plot_obstacle_dynamics(
         obstacle_container=environment,
@@ -221,6 +244,7 @@ def multi_epoch_noisy_velocity(
         show_ticks=True,
         vectorfield_color="#7a7a7a7f",
     )
+
     plot_obstacles(
         ax=ax,
         obstacle_container=environment,
@@ -229,32 +253,46 @@ def multi_epoch_noisy_velocity(
         showLabel=False,
     )
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(5, 2))
     ax.set_xlim([std_noise_ranges[0], std_noise_ranges[-1]])
 
-    mean_values = np.mean(min_distances, axis=1)
-    std_values = np.std(min_distances, axis=1)
+    for min_distances, key in zip(min_distance_both, ["dynamics", "obstacle"]):
+        mean_values = np.mean(min_distances, axis=1)
+        std_values = np.std(min_distances, axis=1)
 
-    ax.fill_between(
-        std_noise_ranges,
-        mean_values - std_values,
-        mean_values + std_values,
-        alpha=0.3,
-        color=plot_setup["obstacle"].color,
-        zorder=0,
-    )
-    ax.plot(
-        std_values,
-        mean_values,
-        color=plot_setup["obstacle"].color,
-        label=plot_setup["obstacle"].label,
-        **kwargs_meanline,
-        zorder=0,
-    )
-    # ax.set_ylim(y_lim)
+        ax.fill_between(
+            std_noise_ranges,
+            mean_values - std_values,
+            mean_values + std_values,
+            alpha=0.3,
+            color=plot_setup[key].color,
+            zorder=0,
+        )
+
+        ax.plot(
+            std_noise_ranges,
+            mean_values,
+            linewidth=2.0,
+            color=plot_setup[key].color,
+            label=plot_setup[key].label,
+            **kwargs_meanline,
+            zorder=0,
+        )
+
+    ax.plot(ax.get_xlim(), [0, 0], "--", color="black", linewidth=2.0)
+
+    ax.set_xlabel("Velocity noise variance [m/s]")
+    ax.set_ylabel("Closest distance [m]")
+    ax.legend()
+
+    if save_figure:
+        figname = "comparison_velocity_noise"
+        plt.savefig("figures/" + figname + figtype, bbox_inches="tight")
 
 
-def get_minimum_obstacle_distance(position: np.ndarray, environment: ObstacleContainer):
+def get_minimum_obstacle_distance(
+    position: np.ndarray, environment: ObstacleContainer
+) -> float:
     # distances = np.zeros(position.shape[1])
     distances = np.zeros(len(environment))
     for ii, obs in enumerate(environment):
@@ -277,6 +315,6 @@ if (__name__) == "__main__":
     reimport_data = False
     # if reimport_data or "min_distances" not in locals():
     min_distances = multi_epoch_noisy_velocity(
-        visualize=True, n_epoch=2, n_grid_noise=3, it_max=100, delta_time=0.05
+        visualize=True, n_epoch=10, n_grid_noise=10, it_max=400, delta_time=0.02
     )
     # visualize_distances(min_distances, save_figure=False)
