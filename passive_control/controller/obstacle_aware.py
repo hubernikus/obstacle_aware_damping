@@ -41,6 +41,10 @@ class ObstacleAwarePassivController(Controller):
         self.update_normal_list(position)
         self.damping_matrix = self.compute_damping(desired_velocity, velocity)
         control_force = self.damping_matrix @ (desired_velocity - velocity)
+
+        if np.any(np.isnan(control_force)):
+            breakpoint()  # TODO: remove after debug
+
         return control_force
 
     def compute_control_force_for_agent(
@@ -107,14 +111,20 @@ class ObstacleAwarePassivController(Controller):
         damping_matrix_dynamics = self._compute_dynamics_damping(
             desired_velocity, averaged_normal, min_gamma
         )
-        if weight < 0:
+        if weight <= 0:
             return damping_matrix_dynamics
 
         damping_matrix_obstacle = self._compute_obstacle_damping(
             averaged_normal, desired_velocity, current_velocity
         )
 
-        return weight * damping_matrix_obstacle + (1 - weight) * damping_matrix_dynamics
+        total_matrix = (
+            weight * damping_matrix_obstacle + (1 - weight) * damping_matrix_dynamics
+        )
+        if np.any(np.isnan(total_matrix)):
+            breakpoint()  # TODO: remove after debug
+
+        return total_matrix
 
     def _compute_dynamics_damping(
         self,
@@ -162,19 +172,23 @@ class ObstacleAwarePassivController(Controller):
 
         dotproduct = np.dot(basis1, desired_velocity)
         if not dotproduct:  # Zero value
+            breakpoint()
+            # Not sure this is true ?!
             return get_orthogonal_basis(basis1)
 
-        basis2 = desired_velocity - basis1 * dotproduct
-        basis2 = basis2 / np.linalg.norm(basis2)
+        if dotproduct < 1:
+            basis2 = desired_velocity - basis1 * dotproduct
+            basis2 = basis2 / basis2_norm
 
-        if self.dimension == 2:
-            basis_matrix = np.vstack((basis1, basis2))
-        elif self.dimension == 3:
-            basis_matrix = np.vstack((basis1, basis2, np.cross(basis1, basis2)))
+            if self.dimension == 2:
+                basis_matrix = np.vstack((basis1, basis2))
+            elif self.dimension == 3:
+                basis_matrix = np.vstack((basis1, basis2, np.cross(basis1, basis2)))
+            else:
+                raise NotImplementedError(f"Not defined for dimensions > 3.")
         else:
-            raise NotImplementedError(f"Not defined for dimensions > 3.")
-
-        weight = abs(dotproduct / np.linalg.norm(desired_velocity))
+            # Less important as all weights are equal
+            basis_matrix = get_orthogonal_basis(basis1)
 
         # Set desired matrix values
         if current_velocity is not None:
@@ -185,6 +199,7 @@ class ObstacleAwarePassivController(Controller):
             else:
                 lambda1 = self.lambda_remaining
 
+        weight = abs(dotproduct / np.linalg.norm(desired_velocity))
         lambda2 = (1 - weight) * self.lambda_dynamics + weight * self.lambda_remaining
         damping_matrix = np.diag(
             np.hstack(
@@ -196,4 +211,8 @@ class ObstacleAwarePassivController(Controller):
             )
         )
 
-        return basis_matrix @ damping_matrix @ basis_matrix.T
+        total_matrix = basis_matrix @ damping_matrix @ basis_matrix.T
+        # if np.any(np.isnan(total_matrix)):
+        #     breakpoint()
+
+        return total_matrix

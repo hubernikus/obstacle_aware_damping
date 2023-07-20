@@ -99,7 +99,49 @@ def test_3d_controller():
     assert np.allclose(force, np.zeros(3)), "Already correct force."
 
 
+def test_zero_velocity():
+    dimension = 2
+
+    lambda_DS = 100.0
+    lambda_perp = 20.0
+    lambda_obs = 200.0
+
+    start_position = np.array([0, 0])
+
+    agent = Agent(position=start_position, velocity=np.zeros(2))
+
+    environment = ObstacleContainer()
+    environment.append(
+        Cuboid(
+            axes_length=[0.6, 0.6],
+            center_position=np.array([0.0, 0.0]),
+            margin_absolut=0.15,
+            tail_effect=False,
+        )
+    )
+
+    controller = ObstacleAwarePassivController(
+        lambda_dynamics=lambda_DS,
+        lambda_remaining=lambda_perp,
+        lambda_obstacle=lambda_obs,
+        dimension=dimension,
+        environment=environment,
+    )
+
+    desired_velocity = np.array([1.0, 0.0])
+
+    force = controller.compute_force(
+        position=agent.position,
+        velocity=agent.velocity,
+        desired_velocity=desired_velocity,
+    )
+    assert not np.any(np.isnan(force)), "Force calculation failed."
+    assert force[0] > 0
+    assert np.isclose(force[1], 0)
+
+
 if (__name__) == "__main__":
-    test_simple_obstacle(visualize=False)
+    # test_simple_obstacle(visualize=False)
+    test_zero_velocity()
     # test_3d_controller()
     pass
