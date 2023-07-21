@@ -1,3 +1,5 @@
+import copy
+
 from pathlib import Path
 from typing import Optional
 
@@ -576,8 +578,8 @@ def import_second_experiment(n_traj_max=10):
         dataframe,
         intervals,
         # color="red",
-        color="#B0050B",
-        secondary_color="#AB4346",
+        color=plot_setup["dynamics"].color,
+        secondary_color=plot_setup["dynamics"].secondary_color,
         label="Dynamics preserving",
         # it_nominal=2,
         # it_nominal=4,
@@ -591,8 +593,8 @@ def import_second_experiment(n_traj_max=10):
         intervals,
         # color=(0, 0, 200),
         # secondary_color=(100, 100, 200),
-        color="#084263",
-        secondary_color="#4F778F",
+        color=plot_setup["obstacle"].color,
+        secondary_color=plot_setup["obstacle"].secondary_color,
         it_nominal=8,
         # it_nominal=1,
         label="Obstacle aware",  # "Dynamcis"
@@ -605,7 +607,8 @@ def import_second_experiment(n_traj_max=10):
         intervals,
         # secondary_color="gray",
         color="#696969",
-        secondary_color="#808080",
+        # secondary_color="#808080",
+        secondary_color="#a6a6a6",
         it_nominal=1,
         label="Undisturbed",
     )
@@ -1109,6 +1112,8 @@ if (__name__) == "__main__":
 
     kwargs_meanline = {"linestyle": ":", "alpha": 0.8}
 
+    from scripts.plot_setup import plot_setup
+
     #
     # simulation_handler = Simulated()
     # obs_env = simulation_handler.create_env(
@@ -1130,7 +1135,9 @@ if (__name__) == "__main__":
     )
 
     # Only import data once... -> keep in local workspace after
-    reimport_data = False
+    from scripts.plot_setup import plot_setup
+
+    reimport_data = True
     if reimport_data or "data_no_interaction" not in locals():
         print("(Re-)Importing data-sequences.")
         (data_no_interaction, data_nodamping, data_damped) = import_second_experiment()

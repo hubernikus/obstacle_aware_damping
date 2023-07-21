@@ -179,8 +179,8 @@ class ObstacleAwarePassivController(Controller):
         basis1 = averaged_normal / np.linalg.norm(averaged_normal)
 
         dotproduct = np.dot(basis1, desired_velocity)
-        if dotproduct < 1 and np.linalg.norm(desired_velocity):
-            basis2 = desired_velocity - basis1 * dotproduct
+        basis2 = desired_velocity - basis1 * dotproduct
+        if np.linalg.norm(basis2):
             basis2 = basis2 / np.linalg.norm(basis2)
 
             if self.dimension == 2:
