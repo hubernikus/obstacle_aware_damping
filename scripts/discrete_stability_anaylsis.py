@@ -186,7 +186,12 @@ def evaluate_discrete_controller_with_different_eigenvalues_stable(
     attractor_position = np.array([3.0, 0])
     # base_dynamics = np.array([1.0, 0.0])
     # dynamics = ConstantValue(base_dynamics)
-    A_matrix = np.array([[-1, 0.1], [-0.1, -1]])
+    rot_angle = 30.0
+    cos_ = np.cos(rot_angle * np.pi / 180)
+    sin_ = np.sin(rot_angle * np.pi / 180)
+    # A_matrix = np.array([[-1, 0.1], [-0.1, -1]])
+    A_matrix = -np.array([[cos_, sin_], [-sin_, cos_]])
+
     dynamics = LinearSystem(
         attractor_position=attractor_position, A_matrix=A_matrix, maximum_velocity=5.0
     )
