@@ -43,7 +43,7 @@ def run_controller_evaluate_positions(
     controller,
     dynamics,
     delta_time,
-    start_position=np.array([-3, 0]),
+    start_position=np.array([0, 0]),
     start_delta_velocity=np.array([0, -1.0]),
     it_max=100,
 ):
@@ -81,17 +81,23 @@ def evaluate_discrete_controller_with_different_eigenvalues(
     delta_time = 0.4
     frequency = 1.0 / delta_time
 
+    start_delta_velocity = np.array([0.0, -1.0])
     base_dynamics = np.array([1.0, 0.0])
     dynamics = ConstantValue(base_dynamics)
 
     lambda_fractions = [0.5, 2.0, 2.1, 2.5]
 
-    x_lim = [-3, 5]
+    x_lim = [0, 8]
     y_lim = [-1.0, 1.0]
+
+    from matplotlib.cm import get_cmap
 
     # fig, ax = plt.subplots(figsize=(4.5, 2.0))
     # fig, ax = plt.subplots(figsize=(6.0, 4.0))
-    fig, axs = plt.subplots(len(lambda_fractions), 1, figsize=(5.0, 6.0))
+    # fig, axs = plt.subplots(len(lambda_fractions), 1, figsize=(5.0, 6.0))
+    fig, axs = plt.subplots(len(lambda_fractions), 1, figsize=(4.5, 5.2))
+
+    colors = ["#B07146", "#963C87", "#47A88D", "#638030"]
 
     for ii, lambda_fraction in enumerate(lambda_fractions):
         lambda_max = frequency * lambda_fraction
@@ -104,9 +110,24 @@ def evaluate_discrete_controller_with_different_eigenvalues(
             lambda_dynamics=lambda_DS, lambda_remaining=lambda_perp, dimension=dimension
         )
 
-        positions = run_controller_evaluate_positions(controller, dynamics, delta_time)
+        positions = run_controller_evaluate_positions(
+            controller, dynamics, delta_time, start_delta_velocity=start_delta_velocity
+        )
 
         ax = axs[ii]
+
+        start_velocity = start_delta_velocity + base_dynamics
+        start_position = [0, 0]
+        ax.arrow(
+            start_position[0],
+            start_position[1],
+            start_velocity[0] * 0.5,
+            start_velocity[1] * 0.5,
+            color="blue",
+            width=0.06,
+        )
+        ax.plot(start_position[0], start_position[1], "o", color="black", zorder=3)
+
         plot_obstacle_dynamics(
             obstacle_container=[],
             dynamics=dynamics.evaluate,
@@ -127,6 +148,7 @@ def evaluate_discrete_controller_with_different_eigenvalues(
             label=f"{lambda_fraction:.1f} f",
             linewidth=2.0,
             markersize=8.0,
+            color=colors[ii],
         )
 
         if ii < len(lambda_fractions) - 1:
@@ -145,6 +167,10 @@ def evaluate_discrete_controller_with_different_eigenvalues(
         ax.set_ylabel(r"$\xi_2$ [m]")
         ax.legend(loc="upper right")
 
+    if save_figure:
+        figname = "discrete_controller_parameters_comparison"
+        plt.savefig("figures/" + figname + figtype, bbox_inches="tight")
+
 
 if (__name__) == "__main__":
     figtype = ".pdf"
@@ -152,4 +178,6 @@ if (__name__) == "__main__":
     plt.close("all")
     plt.ion()
 
-    evaluate_discrete_controller_with_different_eigenvalues(visualize=True)
+    evaluate_discrete_controller_with_different_eigenvalues(
+        visualize=True, save_figure=True
+    )
