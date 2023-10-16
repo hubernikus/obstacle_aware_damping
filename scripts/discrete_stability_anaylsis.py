@@ -88,7 +88,7 @@ def evaluate_discrete_controller_with_different_eigenvalues(
 
     lambda_fractions = [0.5, 2.0, 2.1, 2.5]
 
-    x_lim = [0, 8]
+    x_lim = [-1, 7]
     y_lim = [-1.0, 1.0]
 
     from matplotlib.cm import get_cmap
@@ -98,7 +98,10 @@ def evaluate_discrete_controller_with_different_eigenvalues(
     # fig, axs = plt.subplots(len(lambda_fractions), 1, figsize=(5.0, 6.0))
     fig, axs = plt.subplots(len(lambda_fractions), 1, figsize=(4.5, 5.2))
 
-    colors = ["#B07146", "#963C87", "#47A88D", "#638030"]
+    step_dx = delta_time * np.linalg.norm(base_dynamics)
+    x_values = np.arange(x_lim[0], 0, step_dx)
+    x_values = x_values - x_values[-1] - step_dx
+    undisturbed_positions = np.vstack((x_values, np.zeros(x_values.shape)))
 
     for ii, lambda_fraction in enumerate(lambda_fractions):
         lambda_max = frequency * lambda_fraction
@@ -115,6 +118,10 @@ def evaluate_discrete_controller_with_different_eigenvalues(
             controller, dynamics, delta_time, start_delta_velocity=start_delta_velocity
         )
 
+        # breakpoint()
+        # Add start positions
+        positions = np.hstack((undisturbed_positions, positions))
+
         ax = axs[ii]
 
         start_velocity = start_delta_velocity + base_dynamics
@@ -125,8 +132,20 @@ def evaluate_discrete_controller_with_different_eigenvalues(
             start_velocity[0] * 0.5,
             start_velocity[1] * 0.5,
             color="blue",
+            # color="#740782ff",
             width=0.06,
         )
+
+        ax.arrow(
+            start_position[0],
+            start_position[1],
+            0,
+            start_velocity[1] * 0.5,
+            # color="blue",
+            color="#740782ff",
+            width=0.06,
+        )
+
         ax.plot(start_position[0], start_position[1], "o", color="black", zorder=3)
 
         plot_obstacle_dynamics(
@@ -211,8 +230,6 @@ def evaluate_discrete_controller_with_different_eigenvalues_stable(
     n_col = 2
     fig, axs = plt.subplots(n_row, n_col, figsize=(4.5, 4.5))
 
-    colors = ["#B07146", "#963C87", "#47A88D", "#638030"]
-
     for ii, lambda_fraction in enumerate(lambda_fractions):
         lambda_max = frequency * lambda_fraction
 
@@ -296,6 +313,9 @@ if (__name__) == "__main__":
 
     plt.close("all")
     plt.ion()
+
+    colors = ["#DB7660", "#DB608F", "#47A88D", "#638030"]
+    # colors = ["#B07146", "#963C87", "#47A88D", "#638030"
 
     evaluate_discrete_controller_with_different_eigenvalues(
         visualize=True, save_figure=True
