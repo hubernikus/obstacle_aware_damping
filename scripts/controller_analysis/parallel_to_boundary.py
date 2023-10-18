@@ -65,8 +65,8 @@ class Agent:
 
 
 def main(save_figure=False):
-    x_lim = [-0.2, 2.1]
-    y_lim = [-0.1, 1.1]
+    x_lim = [-0.35, 2.1]
+    y_lim = [-0.25, 1.1]
 
     dynamics = ParallelToBoundaryDS()
     start_position = np.zeros(dimension)
@@ -101,30 +101,77 @@ def main(save_figure=False):
         impact_velocity[0] * arrow_scaling,
         impact_velocity[1] * arrow_scaling,
         width=0.02,
-        color="red",
+        # color="red",
+        color="#740782ff",
         zorder=3,
         # label="Disturbance",
     )
-    ax.plot(start_position[0], start_position[1], "o", color="black", zorder=10)
-    ax.text(
-        start_position[0] + initial_velocity[0] * arrow_scaling + 0.2,
-        start_position[1] - 0.048,
-        "Initial \nvelocity",
-        backgroundcolor="white",
-        size=9,
-        color="blue",
-        zorder=3,
-    )
 
-    ax.text(
-        start_position[0] - 0.16,
-        start_position[1] + impact_velocity[0] * arrow_scaling + 0.44,
-        "Impact \nvelocity",
-        backgroundcolor="white",
-        size=9,
-        color="red",
-        zorder=2,
-    )
+    ax.plot(start_position[0], start_position[1], "o", color="black", zorder=10)
+    ax.plot(start_position[0], 1.0, "o", color="black", zorder=10)
+
+    plot_text = False
+    if plot_text:
+        ax.text(
+            start_position[0] + initial_velocity[0] * arrow_scaling + 0.2,
+            start_position[1] - 0.048,
+            "Initial \nvelocity",
+            backgroundcolor="white",
+            size=9,
+            color="blue",
+            zorder=3,
+        )
+
+        ax.text(
+            start_position[0] - 0.16,
+            start_position[1] + impact_velocity[0] * arrow_scaling + 0.44,
+            "Impact \nvelocity",
+            backgroundcolor="white",
+            size=9,
+            color="red",
+            zorder=2,
+        )
+
+    else:
+        ax.text(
+            start_position[0] + initial_velocity[0] * arrow_scaling + 0.15,
+            start_position[1] - 0.1,
+            r"$v^{0}$",
+            backgroundcolor="white",
+            size=12,
+            color="blue",
+            zorder=3,
+        )
+
+        ax.text(
+            start_position[0] - 0.16,
+            start_position[1] + impact_velocity[0] * arrow_scaling + 0.44,
+            r"$v^{I}$",
+            backgroundcolor="white",
+            size=12,
+            color="#740782ff",
+            zorder=3,
+        )
+
+        ax.text(
+            start_position[0] - 0.17,
+            start_position[1] - 0.16,
+            r"$p^0$",
+            backgroundcolor="white",
+            size=12,
+            color="black",
+            zorder=3,
+        )
+
+        ax.text(
+            start_position[0] - 0.09,
+            1.0 - 0.16,
+            r"$\xi^b$",
+            backgroundcolor="white",
+            size=12,
+            color="black",
+            zorder=3,
+        )
 
     container = ObstacleContainer()
     container.append(
@@ -145,7 +192,8 @@ def main(save_figure=False):
         x_lim=x_lim,
         y_lim=y_lim,
         ax=ax,
-        n_grid=8,
+        n_grid=10,
+        vectorfield_color="#7a7a7a7f",
     )
 
     # Plot baseline / Undisturbed motion
@@ -165,7 +213,7 @@ def main(save_figure=False):
     ax.plot(
         [agent.position[0], undisturbed_position[0]],
         [agent.position[1], undisturbed_position[1]],
-        "--",
+        ":",
         # label="Uncontrolled",
         color="red",
         alpha=0.6,
@@ -189,9 +237,10 @@ def main(save_figure=False):
         positions[0, :],
         positions[1, :],
         "k",
-        linestyle="dashdot",
+        # linestyle="dashdot",
         linewidth=2.0,
         label=r"$s^{obs} = 10$",
+        color=colors[0],
     )
 
     # Very high damping - w/ max-force
@@ -215,7 +264,15 @@ def main(save_figure=False):
         agent.euler_step(dt)
 
         positions[:, ii + 1] = agent.position
-    ax.plot(positions[0, :], positions[1, :], linewidth=2, label="$s^{obs} = 20$")
+
+    ax.plot(
+        positions[0, :],
+        positions[1, :],
+        linewidth=2,
+        label="$s^{obs} = 20$",
+        color=colors[1],
+        linestyle="--",
+    )
 
     # Very high damping - w/ max-force
     controller.s_obs = 40
@@ -237,7 +294,15 @@ def main(save_figure=False):
         agent.euler_step(dt)
 
         positions[:, ii + 1] = agent.position
-    ax.plot(positions[0, :], positions[1, :], linewidth=2, label="$s^{obs} = 40$")
+
+    ax.plot(
+        positions[0, :],
+        positions[1, :],
+        linewidth=2,
+        label="$s^{obs} = 40$",
+        color=colors[2],
+        linestyle=(0, (3, 1, 1, 1, 1, 1)),
+    )
 
     # Very high damping - w/ max-force
     controller.s_obs = 40
@@ -259,12 +324,14 @@ def main(save_figure=False):
         agent.euler_step(dt)
 
         positions[:, ii + 1] = agent.position
+
     ax.plot(
         positions[0, :],
         positions[1, :],
         linestyle="dashdot",
         linewidth=2,
         label=r"$s^{obs} = 40$" + "\n" + r"$\tau^{max} = 100$",
+        color=colors[3],
     )
 
     ax.legend(loc="center right")
@@ -278,6 +345,8 @@ if (__name__) == "__main__":
     plt.ion()
     plt.close("all")
     filetype = ".pdf"
+
+    colors = ["#DB7660", "#DB608F", "#47A88D", "#638030"]
 
     main(save_figure=True)
 
