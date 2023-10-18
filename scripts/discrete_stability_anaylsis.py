@@ -126,15 +126,18 @@ def evaluate_discrete_controller_with_different_eigenvalues(
 
         start_velocity = start_delta_velocity + base_dynamics
         start_position = [0, 0]
-        ax.arrow(
-            start_position[0],
-            start_position[1],
-            start_velocity[0] * 0.5,
-            start_velocity[1] * 0.5,
-            color="blue",
-            # color="#740782ff",
-            width=0.06,
-        )
+
+        plot_final_velocity = False
+        if plot_final_velocity:
+            ax.arrow(
+                start_position[0],
+                start_position[1],
+                start_velocity[0] * 0.5,
+                start_velocity[1] * 0.5,
+                color="blue",
+                # color="#740782ff",
+                width=0.06,
+            )
 
         ax.arrow(
             start_position[0],
@@ -321,6 +324,6 @@ if (__name__) == "__main__":
         visualize=True, save_figure=True
     )
 
-    evaluate_discrete_controller_with_different_eigenvalues_stable(
-        visualize=True, save_figure=True
-    )
+    # evaluate_discrete_controller_with_different_eigenvalues_stable(
+    #     visualize=True, save_figure=True
+    # )

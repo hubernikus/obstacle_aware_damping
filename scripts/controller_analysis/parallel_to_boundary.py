@@ -156,7 +156,7 @@ def main(save_figure=False):
         ax.text(
             start_position[0] - 0.17,
             start_position[1] - 0.16,
-            r"$p^0$",
+            r"$p$",
             backgroundcolor="white",
             size=12,
             color="black",
