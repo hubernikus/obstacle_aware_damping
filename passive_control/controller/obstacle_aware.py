@@ -28,6 +28,8 @@ class ObstacleAwarePassivController(Controller):
     velocity_critical: float = 0.1
     dimension: int = 2
 
+    tail_effect: bool = False
+
     _normals_to_obstacles: np.ndarray = np.zeros(0)
     _distances_to_obstacles: np.ndarray = np.zeros(0)
     _gammas_of_obstacles: np.ndarray = np.zeros(0)
@@ -117,7 +119,7 @@ class ObstacleAwarePassivController(Controller):
         # TODO: partial matrices are stored internally for debugging & visualization but could
         # be localized in the future
         self._damping_weight = weight
-        print("weight", weight)
+        # print("weight", weight)
 
         if weight <= 0:
             return self._damping_matrix_dynamics
@@ -212,7 +214,7 @@ class ObstacleAwarePassivController(Controller):
         # Set desired matrix values
         if current_velocity is not None:
             delta_velocity = desired_velocity - current_velocity
-            if basis1.T @ delta_velocity > 0:
+            if self.tail_effect or basis1.T @ delta_velocity > 0:
                 # When correcting away from obstacle, be stiff (!)
                 lambda1 = self.lambda_obstacle
             else:
