@@ -139,7 +139,9 @@ def plot_disturbances(
                 width=arrow_width,
                 # color="r",
                 # color="#C73200",
-                color="#767820",
+                # color="#767820",
+                # color="#168741",
+                color="#740782",
                 label=("Disturbances" if do_label else None),
                 zorder=zorder_arrow,
             )
@@ -288,6 +290,11 @@ def plot_passivity_comparison(
     lambda_perp = 20.0
     lambda_obs = mn.LAMBDA_MAX
 
+    print("lambda_DS", lambda_DS)
+    print("lambda_perp", lambda_perp)
+    print("lambda_obs", lambda_obs)
+
+    print("delta_time", delta_time)
     # disturbances = [Disturbance(80, 700 * np.array([1.0, -1.0]))]
     # disturbances = []
 
@@ -303,6 +310,7 @@ def plot_passivity_comparison(
             dynamics=dynamic_avoider.evaluate,
             controller=controller,
             it_max=it_max,
+            delta_time=delta_time,
         )
         ax.plot(
             positions[0, :],
@@ -326,6 +334,7 @@ def plot_passivity_comparison(
             controller=controller,
             disturbance_list=disturbances,
             it_max=it_max,
+            delta_time=delta_time,
         )
         ax.plot(
             positions[0, :],
@@ -353,6 +362,7 @@ def plot_passivity_comparison(
             controller=controller,
             disturbance_list=disturbances,
             it_max=it_max,
+            delta_time=delta_time,
         )
 
         ax.plot(

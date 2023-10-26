@@ -35,8 +35,10 @@ pip install git+https://github.com/hubernikus/dynamic_obstacle_avoidance.git@mai
 ```
 
 
+### Robotic Experiments
+The experiments using the 7DoF robot from Franka Emika uses the scripts found in the `docker_scripts` folder, together with the repository 
+(https://github.com/hubernikus/franka_obstacle_avoidance).
 
-python script/robot_with_control_command.py
 
 # Issues
 `python setup.py egg_info did not run successfully.` -> make sure you have the most recent version of setup-tools:

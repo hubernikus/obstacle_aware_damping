@@ -390,6 +390,10 @@ def multi_epoch_noisy_velocity(
     lambda_perp = 0.1 * lambda_max
     lambda_obs = 1.0 * lambda_max
 
+    print(f"lambda_DS: {lambda_DS:.2f}")
+    print(f"lambda_perp: {lambda_perp:.2f}")
+    print(f"lambda_obs: {lambda_obs:.2f}")
+
     dimension = 2
 
     start_position = np.array([-2.5, 1.0])
@@ -551,24 +555,24 @@ if (__name__) == "__main__":
 
     # plot_multiple_avoider(save_figure=True)
     # analysis_point()
-    # min_distances = multi_epoch_noisy_velocity(
-    #     visualize=True,
-    #     it_max=400,
-    #     delta_time=0.02,
-    #     n_epoch=10,
-    #     std_noise_ranges=np.arange(11) * 0.1,
-    #     # n_epoch=2,
-    #     # std_noise_ranges=np.arange(3) * 0.1,
-    #     save_figure=True,
-    # )
-
-    min_distances = multi_epoch_noisy_position(
+    min_distances = multi_epoch_noisy_velocity(
         visualize=True,
         it_max=400,
         delta_time=0.02,
         n_epoch=10,
-        std_noise_ranges=np.arange(11) * 3.0e-3,
+        std_noise_ranges=np.arange(11) * 0.1,
         # n_epoch=2,
         # std_noise_ranges=np.arange(3) * 0.1,
         save_figure=True,
     )
+
+    # min_distances = multi_epoch_noisy_position(
+    #     visualize=True,
+    #     it_max=400,
+    #     delta_time=0.02,
+    #     n_epoch=10,
+    #     std_noise_ranges=np.arange(11) * 3.0e-3,
+    #     # n_epoch=2,
+    #     # std_noise_ranges=np.arange(3) * 0.1,
+    #     save_figure=True,
+    # )

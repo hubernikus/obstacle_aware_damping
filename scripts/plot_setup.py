@@ -12,7 +12,7 @@ plot_setup = {
     "dynamics": PlotStyle(
         color="#AD0500",
         secondary_color="#F56662",
-        label="Dynamics preserving",
+        label="Velocity preserving",
     ),
     "obstacle": PlotStyle(
         color="#005FA8",

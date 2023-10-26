@@ -126,7 +126,8 @@ class AnimationPassiveControllerComparison(Animator):
 
             # Update agent
             agent = self.agents_obstacle[tt]
-            velocity = self.avoider.evaluate_normalized(agent.position)
+            # velocity = self.avoider.evaluate_normalized(agent.position)
+            velocity = self.avoider.evaluate(agent.position)
 
             force = self.controller_obstacle.compute_force(
                 position=agent.position,
@@ -182,14 +183,38 @@ class AnimationPassiveControllerComparison(Animator):
             )
 
         # Get normal
-        normal = self.environment[0].get_normal_direction(
-            self.agents_obstacle[0].position
+
+        ctrl = self.controller_obstacle
+        normal = ctrl.compute_averaged_normal(
+            ctrl._normals_to_obstacles, ctrl._gammas_of_obstacles
         )
+        # normal = self.environment[0].get_normal_direction(
+        #     self.agents_obstacle[0].position
+        # )
         D_matrix = self.controller_obstacle.compute_damping(
             current_velocity=agent.velocity, desired_velocity=velocity
         )
 
+        # breakpoint()
+
         self.ax.clear()
+
+        position = self.trajectories_obstacle[tt][:, ii]
+
+        length_scaling = 0.3
+
+        self.ax.arrow(
+            position[0],
+            position[1],
+            normal[0] * length_scaling,
+            normal[1] * length_scaling,
+            width=0.03,
+            color="red",
+            label="Normal",
+        )
+
+        print("normal", normal)
+        print("pos", agent.position)
 
         # legend_label = "Dynamics preserving"
         # for tt in range(self.n_traj):
@@ -287,7 +312,8 @@ class AnimationPassiveControllerComparison(Animator):
                 collision_check_functor=lambda x: (
                     self.environment.get_minimum_gamma(x) <= 1
                 ),
-                dynamics=self.avoider.evaluate_normalized,
+                # dynamics=self.avoider.evaluate_normalized,
+                dynamics=self.avoider.evaluate,
                 x_lim=self.x_lim,
                 y_lim=self.y_lim,
                 ax=self.ax,
@@ -335,7 +361,7 @@ def animation_disturbance(save_animation=False):
     dimension = 2
 
     # start_position = np.array([-2.5, -1.0])
-    attractor_position = np.array([2.5, 1.0])
+    attractor_position = np.array([2.5, 0.5])
 
     initial_dynamics = LinearSystem(
         attractor_position=attractor_position,
@@ -384,7 +410,7 @@ def animation_disturbance(save_animation=False):
         avoider=avoider,
         # disturbances=disturbances,
         x_lim=[-3, 3],
-        y_lim=[-1.5, 2.5],
+        y_lim=[-0.5, 2.5],
     )
     animator.run(save_animation=save_animation)
 

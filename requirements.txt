@@ -4,6 +4,8 @@ numpy
 matplotlib
 attrs
 
+sympy
+
 # For better interface
 ipython
 

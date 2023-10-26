@@ -43,7 +43,7 @@ class Simulated:
                 axes_length=np.array([0.19] * 3),
                 linear_velocity=np.zeros(3),
                 margin_absolut=0.12,
-        9        distance_scaling=10.0,
+                distance_scaling=10.0,
             ),
             obstacle_id=1025,
         )

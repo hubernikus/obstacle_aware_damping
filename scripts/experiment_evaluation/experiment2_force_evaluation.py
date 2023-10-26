@@ -773,7 +773,7 @@ def plot_forces(
 
 
 def plot_forces_all(
-    data_no_interaction, data_nodamping, data_damped, save_figure=False
+    data_no_interaction, data_nodamping, data_damped, save_figure=False, ax=None
 ):
     dimension = 3
 
@@ -781,9 +781,11 @@ def plot_forces_all(
     lambda_perp = 20.0
     lambda_obs = mn.LAMBDA_MAX
 
-    fig, ax = plt.subplots(figsize=figsize)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
     ax.set_xlabel("Time [s]")
-    ax.set_ylabel("Force [N]")
+
+    ax.set_ylabel("Control force [N]")
 
     ax.set_xlim(x_lim_duration)
     # ax.set_ylim([-1.5, 5.0])
@@ -1010,13 +1012,15 @@ def plot_velocities(
 
 
 def plot_closests_distance(
-    data_no_interaction, data_nodamping, data_damped, save_figure=False
+    data_no_interaction, data_nodamping, data_damped, save_figure=False, ax=None
 ):
     dimension = 3
 
-    fig, ax = plt.subplots(figsize=figsize)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+
     ax.set_xlabel("Time [s]")
-    ax.set_ylabel("Distance [m]")
+    ax.set_ylabel("Surface distance [m]")
 
     ax.set_xlim(x_lim_duration)
     ax.set_ylim([-0.2, 0.4])
@@ -1104,6 +1108,39 @@ def main():
     pass
 
 
+def plot_distance_force_double_plot(
+    data_no_interaction,
+    data_nodamping,
+    data_damped,
+    save_figure=False,
+    delta_x=-1.45,
+):
+    fig, axs = plt.subplots(2, 1, figsize=(6.0, 4.5))
+
+    plot_closests_distance(
+        data_no_interaction, data_nodamping, data_damped, save_figure=False, ax=axs[1]
+    )
+    plot_forces_all(
+        data_no_interaction, data_nodamping, data_damped, save_figure=False, ax=axs[0]
+    )
+
+    axs[0].set_xlabel("")
+    # axs[0].set_xticks()
+    axs[0].set_xticklabels([])
+
+    axs[1].get_legend().remove()
+    # axs[1].set_ylim([-0.1, 0.35])
+
+    x_lim = axs[0].get_xlim()
+    x_lim = [xx - delta_x for xx in x_lim]
+    axs[0].set_xlim(x_lim)
+    axs[1].set_xlim(x_lim)
+
+    if save_figure:
+        figname = "trajectory_comparison_force_and_distance"
+        plt.savefig("figures/" + figname + figtype, bbox_inches="tight")
+
+
 if (__name__) == "__main__":
     figtype = ".pdf"
     figsize = (6.0, 2.2)
@@ -1137,7 +1174,7 @@ if (__name__) == "__main__":
     # Only import data once... -> keep in local workspace after
     from scripts.plot_setup import plot_setup
 
-    reimport_data = True
+    reimport_data = False
     if reimport_data or "data_no_interaction" not in locals():
         print("(Re-)Importing data-sequences.")
         (data_no_interaction, data_nodamping, data_damped) = import_second_experiment()
@@ -1149,13 +1186,18 @@ if (__name__) == "__main__":
 
     # main(data_no_interaction, data_nodamping, data_damped)
 
-    plot_closests_distance(
+    # plot_closests_distance(
+    #     data_no_interaction, data_nodamping, data_damped, save_figure=True
+    # )
+    # plot_forces_all(data_no_interaction, data_nodamping, data_damped, save_figure=True)
+
+    plot_distance_force_double_plot(
         data_no_interaction, data_nodamping, data_damped, save_figure=True
     )
-    plot_forces_all(data_no_interaction, data_nodamping, data_damped, save_figure=True)
-    plot_positions_single_graph(
-        data_no_interaction, data_nodamping, data_damped, save_figure=True
-    )
+
+    # plot_positions_single_graph(
+    #     data_no_interaction, data_nodamping, data_damped, save_figure=True
+    # )
 
     # plot_positions(data_no_interaction, data_nodamping, data_damped)
     # plot_velocities(data_no_interaction, data_nodamping, data_damped)
