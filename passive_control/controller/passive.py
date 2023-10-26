@@ -56,9 +56,11 @@ class PassiveDynamicsController(Controller):
                 )
             )
         )
-
         basis_matrix = get_orthogonal_basis(desired_velocity)
-        return basis_matrix @ damping_matrix @ basis_matrix.T
+
+        # TODO: storing for visualization
+        self._damping_matrix_dynamics = basis_matrix @ damping_matrix @ basis_matrix.T
+        return self._damping_matrix_dynamics
 
 
 def test_passive_around_simple_obstacle(visualize=False):

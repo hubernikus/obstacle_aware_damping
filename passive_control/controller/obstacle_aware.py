@@ -110,18 +110,25 @@ class ObstacleAwarePassivController(Controller):
         min_gamma = np.min(self._gammas_of_obstacles)
         weight = self.compute_danger_weight(min_gamma, averaged_normal)
 
-        damping_matrix_dynamics = self._compute_dynamics_damping(
+        self._damping_matrix_dynamics = self._compute_dynamics_damping(
             desired_velocity, averaged_normal, min_gamma
         )
-        if weight <= 0:
-            return damping_matrix_dynamics
 
-        damping_matrix_obstacle = self._compute_obstacle_damping(
+        # TODO: partial matrices are stored internally for debugging & visualization but could
+        # be localized in the future
+        self._damping_weight = weight
+        print("weight", weight)
+
+        if weight <= 0:
+            return self._damping_matrix_dynamics
+
+        self._damping_matrix_obstacle = self._compute_obstacle_damping(
             averaged_normal, desired_velocity, current_velocity
         )
 
         total_matrix = (
-            weight * damping_matrix_obstacle + (1 - weight) * damping_matrix_dynamics
+            weight * self._damping_matrix_obstacle
+            + (1 - weight) * self._damping_matrix_dynamics
         )
         if np.any(np.isnan(total_matrix)):
             breakpoint()  # TODO: remove after debug
@@ -168,6 +175,9 @@ class ObstacleAwarePassivController(Controller):
             )
         )
 
+        # print("lambda1", self.lambda_dynamics)
+        # print("other_lambda", self.lambda_dynamics)
+
         return basis_matrix @ damping_matrix @ basis_matrix.T
 
     def _compute_obstacle_damping(
@@ -184,9 +194,9 @@ class ObstacleAwarePassivController(Controller):
             basis2 = basis2 / np.linalg.norm(basis2)
 
             if self.dimension == 2:
-                basis_matrix = np.vstack((basis1, basis2))
+                basis_matrix = np.vstack((basis1, basis2)).T
             elif self.dimension == 3:
-                basis_matrix = np.vstack((basis1, basis2, np.cross(basis1, basis2)))
+                basis_matrix = np.vstack((basis1, basis2, np.cross(basis1, basis2))).T
             else:
                 raise NotImplementedError(f"Not defined for dimensions > 3.")
         else:
@@ -228,6 +238,7 @@ class ObstacleAwarePassivController(Controller):
 
         total_matrix = basis_matrix @ damping_matrix @ basis_matrix.T
         if np.any(np.isnan(total_matrix)):
+            # TODO debugging - remove
             breakpoint()
 
         return total_matrix
