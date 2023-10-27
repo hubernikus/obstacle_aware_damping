@@ -429,7 +429,7 @@ class Disturbance:
     trajectory_number: int = 0
 
 
-def animation_passive(save_animation=False):
+def animation_collision_repulsion(save_animation=False):
     delta_time = 0.05
 
     # lambda_max = 1.0 / delta_time
@@ -442,16 +442,11 @@ def animation_passive(save_animation=False):
     dimension = 2
 
     # start_position = np.array([-2.5, -1.0])
-    attractor_position = np.array([2.5, 0.5])
-
-    # initial_dynamics = LinearSystem(
-    #     attractor_position=attractor_position,
-    #     maximum_velocity=1.0,
-    #     distance_decrease=1.0,
-    # )
-
-    initial_dynamics = ParallelSinusMagnitudeDynamics()
-    #  start_velocity = initial_dynamics.evaluate(start_position)
+    initial_dynamics = LinearSystem(
+        attractor_position=np.array([1e6, 0]),
+        maximum_velocity=1.0,
+        distance_decrease=1.0,
+    )
 
     environment = create_environment()
 
@@ -494,62 +489,7 @@ def animation_passive(save_animation=False):
     animator.run(save_animation=save_animation)
 
 
-def create_ellipse_path(center, axes, angle=0, color="black", boundary_color=None):
-    patch = patches.Ellipse(
-        (center[0], center[1]),
-        axes[0],
-        axes[1],
-        angle=angle * 180 / math.pi,
-        # angle=0,
-        linewidth=0,
-        fill=True,
-        zorder=0,
-        color=color,
-        alpha=1.0,
-    )
-
-    if color is None:
-        pass
-
-    return patch
-
-
-def test_ellipse():
-    fig, ax = plt.subplots()
-
-    center = [0, 0]
-    ellipse_axes = np.array([2, 4])
-
-    vector = np.array([2, 1])
-    ax.arrow(
-        center[0],
-        center[1],
-        vector[0],
-        vector[1],
-        color="white",
-        width=0.3,
-        length_includes_head=True,
-    )
-
-    pp = 2
-    factor = np.sum((vector / ellipse_axes) ** 2) ** (1 / 2.0)
-
-    patch_ellipse = create_ellipse_path(
-        center,
-        2 * ellipse_axes * factor,
-        color="blue",
-    )
-
-    ax.add_patch(patch_ellipse)
-
-    ax.set_xlim([-10, 10])
-    ax.set_ylim([-10, 10])
-    ax.grid()
-
-
 if (__name__) == "__main__":
     # def main():
     plt.style.use("dark_background")
-    # animation_passive(save_animation=True)
-
-    # test_ellipse()
+    animation_collision_repulsion(save_animation=True)

@@ -46,6 +46,8 @@ class ObstacleAwarePassivController(Controller):
         self.damping_matrix = self.compute_damping(desired_velocity, velocity)
         control_force = self.damping_matrix @ (desired_velocity - velocity)
 
+        # print("DD", self.damping_matrix)
+
         if np.any(np.isnan(control_force)):
             breakpoint()  # TODO: remove after debug
 
@@ -120,6 +122,7 @@ class ObstacleAwarePassivController(Controller):
         # be localized in the future
         self._damping_weight = weight
         # print("weight", weight)
+        # print("ds", self._damping_matrix_dynamics)
 
         if weight <= 0:
             return self._damping_matrix_dynamics
@@ -132,6 +135,11 @@ class ObstacleAwarePassivController(Controller):
             weight * self._damping_matrix_obstacle
             + (1 - weight) * self._damping_matrix_dynamics
         )
+
+        # print("ds", self._damping_matrix_dynamics)
+        # print("obs", self._damping_matrix_obstacle)
+        # breakpoint()
+
         if np.any(np.isnan(total_matrix)):
             breakpoint()  # TODO: remove after debug
 
@@ -146,7 +154,7 @@ class ObstacleAwarePassivController(Controller):
         desired_velocity: np.ndarray,
         averaged_normal: np.ndarray,
         min_gamma: np.ndarray,
-        power_weight: int | float = 1 / 2,
+        power_weight: int | float = 0.5,
     ) -> np.ndarray:
         basis_matrix = get_orthogonal_basis(desired_velocity)
 
@@ -158,11 +166,14 @@ class ObstacleAwarePassivController(Controller):
 
         perp_vector = (basis_matrix[:, 0] @ averaged_normal) * basis_matrix[:, 0]
         perp_vector = perp_vector - averaged_normal
+
+        delta_gamma = max(
+            0, (self.gamma_critical - min_gamma) / (self.gamma_critical - 1.0)
+        )
         weight = min(
             1,
-            (perp_vector.T @ perp_vector) ** power_weight
-            + ((self.gamma_critical - min_gamma) / (self.gamma_critical - 1.0))
-            ** power_weight,
+            (perp_vector.T @ perp_vector) ** (2 * power_weight)
+            + delta_gamma**power_weight,
         )
         other_lambda = (
             weight * self.lambda_remaining + (1 - weight) * self.lambda_obstacle
@@ -179,6 +190,14 @@ class ObstacleAwarePassivController(Controller):
 
         # print("lambda1", self.lambda_dynamics)
         # print("other_lambda", self.lambda_dynamics)
+        # print("perp", (perp_vector.T @ perp_vector))
+        # print(
+        #     "gamma", ((self.gamma_critical - min_gamma) / (self.gamma_critical - 1.0))
+        # )
+        # print("ds-weight", weight)
+        # print("other lambda", other_lambda)
+
+        # if weight < 0.5:
 
         return basis_matrix @ damping_matrix @ basis_matrix.T
 
