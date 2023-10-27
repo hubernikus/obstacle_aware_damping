@@ -29,6 +29,7 @@ class ObstacleAwarePassivController(Controller):
     dimension: int = 2
 
     tail_effect: bool = False
+    maximal_force: Optional[float] = None
 
     _normals_to_obstacles: np.ndarray = np.zeros(0)
     _distances_to_obstacles: np.ndarray = np.zeros(0)
@@ -50,6 +51,10 @@ class ObstacleAwarePassivController(Controller):
 
         if np.any(np.isnan(control_force)):
             breakpoint()  # TODO: remove after debug
+
+        if self.maximal_force is not None:
+            if (force_norm := np.linalg.norm(control_force)) > self.maximal_force:
+                control_force = control_force / force_norm * self.maximal_force
 
         return control_force
 
