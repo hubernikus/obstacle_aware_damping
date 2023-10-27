@@ -21,9 +21,11 @@ class Controller(ABC):
     """
 
     def is_damping_value(self, attributes, value) -> bool:
-        if 0 < value <= mn.LAMBDA_MAX:
-            return
-        raise ValueError("Values not within bound.")
+        # if 0 < value <= mn.LAMBDA_MAX:
+        if value <= 0 or value > mn.LAMBDA_MAX:
+            warnings.warn("Values not within bound.")
+            # raise ValueError("Values not within bound.")
+        return
 
 
 class RegulationController(Controller):
