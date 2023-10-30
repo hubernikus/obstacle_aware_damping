@@ -566,13 +566,13 @@ if (__name__) == "__main__":
         save_figure=True,
     )
 
-    # min_distances = multi_epoch_noisy_position(
-    #     visualize=True,
-    #     it_max=400,
-    #     delta_time=0.02,
-    #     n_epoch=10,
-    #     std_noise_ranges=np.arange(11) * 3.0e-3,
-    #     # n_epoch=2,
-    #     # std_noise_ranges=np.arange(3) * 0.1,
-    #     save_figure=True,
-    # )
+    min_distances = multi_epoch_noisy_position(
+        visualize=True,
+        it_max=400,
+        delta_time=0.02,
+        n_epoch=10,
+        std_noise_ranges=np.arange(11) * 3.0e-3,
+        # n_epoch=2,
+        # std_noise_ranges=np.arange(3) * 0.1,
+        save_figure=True,
+    )

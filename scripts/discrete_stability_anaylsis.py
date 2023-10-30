@@ -320,10 +320,10 @@ if (__name__) == "__main__":
     colors = ["#DB7660", "#DB608F", "#47A88D", "#638030"]
     # colors = ["#B07146", "#963C87", "#47A88D", "#638030"
 
-    evaluate_discrete_controller_with_different_eigenvalues(
-        visualize=True, save_figure=True
-    )
-
-    # evaluate_discrete_controller_with_different_eigenvalues_stable(
+    # evaluate_discrete_controller_with_different_eigenvalues(
     #     visualize=True, save_figure=True
     # )
+
+    evaluate_discrete_controller_with_different_eigenvalues_stable(
+        visualize=True, save_figure=False
+    )

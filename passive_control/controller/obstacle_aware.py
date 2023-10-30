@@ -103,6 +103,8 @@ class ObstacleAwarePassivController(Controller):
         return averaged_normal
 
     def compute_danger_weight(self, min_gamma, averaged_normal) -> float:
+        """Returns the danger-weight which indicates the proximity to the obstacle,
+        with 1 -> on the obstacle / 0 -> far away."""
         if min_gamma <= 1:
             return 1.0
         elif min_gamma >= self.gamma_critical:
@@ -113,21 +115,24 @@ class ObstacleAwarePassivController(Controller):
     def compute_damping(
         self, desired_velocity: np.ndarray, current_velocity: np.ndarray
     ) -> np.ndarray:
-        averaged_normal = self.compute_averaged_normal(
-            self._normals_to_obstacles, self._gammas_of_obstacles
-        )
-        min_gamma = np.min(self._gammas_of_obstacles)
-        weight = self.compute_danger_weight(min_gamma, averaged_normal)
+        if len(self._gammas_of_obstacles) > 0:
+            averaged_normal = self.compute_averaged_normal(
+                self._normals_to_obstacles, self._gammas_of_obstacles
+            )
+            min_gamma = np.min(self._gammas_of_obstacles)
+            weight = self.compute_danger_weight(min_gamma, averaged_normal)
+        else:
+            weight = 0.0
+            averaged_normal = np.zeros(self.dimension)
+            min_gamma = 1e9  # A value >> 1
 
         self._damping_matrix_dynamics = self._compute_dynamics_damping(
             desired_velocity, averaged_normal, min_gamma
         )
 
-        # TODO: partial matrices are stored internally for debugging & visualization but could
-        # be localized in the future
+        # TODO: partial matrices & vairables are stored internally for
+        # debugging & visualization but could be localized in the future
         self._damping_weight = weight
-        # print("weight", weight)
-        # print("ds", self._damping_matrix_dynamics)
 
         if weight <= 0:
             return self._damping_matrix_dynamics

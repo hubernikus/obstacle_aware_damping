@@ -44,12 +44,13 @@ class AnimationCollisionAvoidance(Animator):
     # def setup(self, n_traj: int =  4):
     def setup(
         self,
-        environment,
         controllers,
         avoider,
+        environment=[],
         x_lim=[-16, 12],
         y_lim=[-10, 10],
         attractor=None,
+        start_position=None,
         disturbances=[],
     ):
         # Kind-of HD
@@ -63,7 +64,10 @@ class AnimationCollisionAvoidance(Animator):
         self.disturbance_vectors = np.zeros((2, 0))
 
         # start_y_positions = [-1.6, -0.2, 1.0]
-        self.start_position = [x_lim[0], 0.0]
+        if start_position is None:
+            self.start_position = [x_lim[0], 0.0]
+        else:
+            self.start_position = start_position
         self.n_controllers = len(self.controllers)
 
         self.n_grid = 15
@@ -148,7 +152,7 @@ class AnimationCollisionAvoidance(Animator):
         linestyle_list = ["-", "--", (0, (3, 1, 1, 1, 1, 1)), "dashdot"]
 
         vel_scaling = 0.1
-        arrow_width = 0.03
+        arrow_width = 0.1
 
         force_scaling = 0.0008
 
@@ -248,9 +252,9 @@ class AnimationCollisionAvoidance(Animator):
         if plot_vectorfield:
             plot_obstacle_dynamics(
                 obstacle_container=self.environment,
-                collision_check_functor=lambda x: (
-                    self.environment.get_minimum_gamma(x) <= 1
-                ),
+                # collision_check_functor=lambda x: (
+                #     self.environment.get_minimum_gamma(x) <= 1
+                # ),
                 dynamics=self.avoider.evaluate_normalized,
                 # dynamics=self.avoider.evaluate,
                 x_lim=self.x_lim,
@@ -285,36 +289,7 @@ def create_environment():
     return obstacle_environment
 
 
-@dataclass
-class Disturbance:
-    timestep: int
-    force: np.ndarray
-
-
-def animation_discrete_system(save_animation=False):
-    delta_time = 0.01
-
-    # lambda_max = 1.0 / delta_time
-    lambda_max = 0.5 / delta_time
-
-    dimension = 2
-
-    # start_position = np.array([-2.5, -1.0])
-    # initial_dynamics = LinearSystem(
-    #     attractor_position=np.array([1e6, 0]),
-    #     maximum_velocity=1.0,
-    #     distance_decrease=1.0,
-    # )
-
-    initial_dynamics = ParallelToBoundaryDS()
-
-    environment = create_environment()
-
-    avoider = ModulationAvoider(
-        initial_dynamics=initial_dynamics,
-        obstacle_environment=environment,
-    )
-
+def create_controllers(delta_time, environment, dimension=2):
     controllers = {}
 
     mass = 1.0
@@ -363,6 +338,49 @@ def animation_discrete_system(save_animation=False):
         environment=environment,
     )
 
+    return controllers
+
+
+def create_spiraling_dynamics():
+    start_delta_velocity = np.array([0.0, 0.0])
+    attractor_position = np.array([3.0, 0])
+
+    # base_dynamics = np.array([1.0, 0.0])
+    # dynamics = ConstantValue(base_dynamics)
+    rot_angle = 30.0
+    cos_ = np.cos(rot_angle * np.pi / 180)
+    sin_ = np.sin(rot_angle * np.pi / 180)
+
+    # A_matrix = np.array([[-1, 0.1], [-0.1, -1]])
+    A_matrix = -np.array([[cos_, sin_], [-sin_, cos_]])
+
+    dynamics = LinearSystem(
+        attractor_position=attractor_position, A_matrix=A_matrix, maximum_velocity=5.0
+    )
+
+    return dynamics
+
+
+@dataclass
+class Disturbance:
+    timestep: int
+    force: np.ndarray
+
+
+def animation_discrete_system(save_animation=False):
+    delta_time = 0.01
+    dimension = 2
+
+    initial_dynamics = ParallelToBoundaryDS()
+    # environment = create_environment()
+    environment = []
+    controllers = create_controllers(delta_time, environment=environment)
+
+    avoider = ModulationAvoider(
+        initial_dynamics=initial_dynamics,
+        obstacle_environment=environment,
+    )
+
     impact_velocity = 4.0  # Velocity after impact
     impact_force = impact_velocity / delta_time
     disturbances = [Disturbance(6, impact_force * np.array([0, -1.0]))]
@@ -385,8 +403,53 @@ def animation_discrete_system(save_animation=False):
     animator.run(save_animation=save_animation)
 
 
+def animation_discrete_system_rotating(
+    save_animation=False, delta_time=0.18, disturbances=[]
+):
+    dimension = 2
+
+    initial_dynamics = create_spiraling_dynamics()
+    # environment = create_environment()
+    environment = []
+    controllers = create_controllers(delta_time, environment=environment)
+
+    avoider = ModulationAvoider(
+        initial_dynamics=initial_dynamics,
+        obstacle_environment=environment,
+    )
+
+    impact_velocity = 4.0  # Velocity after impact
+    impact_force = impact_velocity / delta_time
+
+    animator = AnimationCollisionAvoidance(
+        dt_simulation=delta_time,
+        dt_sleep=0.01,
+        it_max=110,
+        animation_name=f"discrete_control_spiralling_dynamics_dt{round(delta_time*1000)}_ms"
+        + f"_{len(disturbances)}disturbance",
+        file_type=".gif",
+    )
+    animator.setup(
+        environment=environment,
+        controllers=controllers,
+        avoider=avoider,
+        disturbances=disturbances,
+        start_position=np.array([-5, 0.0]),
+        x_lim=[-5, 5],
+        y_lim=[-5.0, 5.0],
+    )
+    animator.run(save_animation=save_animation)
+
+
 if (__name__) == "__main__":
     # def main():
 
     plt.style.use("dark_background")
-    animation_discrete_system(save_animation=False)
+    # animation_discrete_system(save_animation=False)
+
+    # animation_discrete_system_rotating(save_animation=False)
+    # animation_discrete_system_rotating(save_animation=True, delta_time=0.05)
+    # dist = [Disturbance(10, 500 * np.array([0, -1.0]))]
+    # animation_discrete_system_rotating(
+    #     save_animation=True, delta_time=0.05, disturbances=dist
+    # )
