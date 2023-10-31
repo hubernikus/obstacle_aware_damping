@@ -63,6 +63,9 @@ class AnimationCollisionAvoidance(Animator):
         self.disturbance_positions = np.zeros((2, 0))
         self.disturbance_vectors = np.zeros((2, 0))
 
+        self.force_scaling = 0.0008
+        self.arrow_width = 0.1
+
         # start_y_positions = [-1.6, -0.2, 1.0]
         if start_position is None:
             self.start_position = [x_lim[0], 0.0]
@@ -152,17 +155,14 @@ class AnimationCollisionAvoidance(Animator):
         linestyle_list = ["-", "--", (0, (3, 1, 1, 1, 1, 1)), "dashdot"]
 
         vel_scaling = 0.1
-        arrow_width = 0.1
-
-        force_scaling = 0.0008
 
         for pp in range(self.disturbance_positions.shape[1]):
             self.ax.arrow(
                 self.disturbance_positions[0, pp],
                 self.disturbance_positions[1, pp],
-                self.disturbance_vectors[0, pp] * force_scaling,
-                self.disturbance_vectors[1, pp] * force_scaling,
-                width=arrow_width,
+                self.disturbance_vectors[0, pp] * self.force_scaling,
+                self.disturbance_vectors[1, pp] * self.force_scaling,
+                width=self.arrow_width,
                 label="Disturbance",
                 color=disturbance_color,
                 zorder=2,
@@ -400,6 +400,9 @@ def animation_discrete_system(save_animation=False):
         x_lim=[-0.35, 2.1],
         y_lim=[-0.6, 0.6],
     )
+
+    animator.force_scaling = 0.0005
+    animator.arrow_width = 0.03
     animator.run(save_animation=save_animation)
 
 
@@ -442,12 +445,11 @@ def animation_discrete_system_rotating(
 
 
 if (__name__) == "__main__":
-    # def main():
-
     plt.style.use("dark_background")
-    # animation_discrete_system(save_animation=False)
 
-    # animation_discrete_system_rotating(save_animation=False)
+    animation_discrete_system(save_animation=False)
+
+    # animation_discrete_system_rotating(save_animation=True, delta_time=0.18)
     # animation_discrete_system_rotating(save_animation=True, delta_time=0.05)
     # dist = [Disturbance(10, 500 * np.array([0, -1.0]))]
     # animation_discrete_system_rotating(

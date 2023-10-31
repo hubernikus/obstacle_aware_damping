@@ -340,7 +340,7 @@ def create_environment_two_corners():
     obstacle_environment = ObstacleContainer()
     margin_absolut = 0.15
 
-    center = np.array([-0.9, -0.2])
+    center = np.array([-0.2, -0.9])
     axes_length = np.array([1.3, 0.3])
     delta_ref = 0.5 * (axes_length[0] - axes_length[1])
     obstacle_environment.append(
@@ -365,7 +365,7 @@ def create_environment_two_corners():
         )
     )
 
-    center = np.array([0.9, 0.2])
+    center = np.array([0.2, 0.9])
     axes_length = np.array([1.3, 0.3])
     delta_ref = 0.5 * (axes_length[0] - axes_length[1])
     obstacle_environment.append(
@@ -402,6 +402,9 @@ class Disturbance:
 def animation_velocity_noise(save_animation=False):
     delta_time = 0.04
     dimension = 2
+
+    x_lim = [-2.5, 10.5]
+    y_lim = [-2.0, 12]
 
     initial_dynamics = LinearSystem(
         attractor_position=np.array([9, 9]),
@@ -454,8 +457,8 @@ def animation_velocity_noise(save_animation=False):
         disturbances=disturbances,
         trajectory_color="#005fa8ff",
         trajectory_label="Obstacle aware",
-        x_lim=[-2.5, 10.5],
-        y_lim=[-1.0, 11],
+        x_lim=x_lim,
+        y_lim=y_lim,
         velocity_noise=velocity_noise,
     )
 
@@ -476,8 +479,8 @@ def animation_velocity_noise(save_animation=False):
         disturbances=disturbances,
         trajectory_color="#bd0500ff",
         trajectory_label="Dynamics preserving",
-        x_lim=[-2.5, 10.5],
-        y_lim=[-1.0, 11],
+        x_lim=x_lim,
+        y_lim=y_lim,
         velocity_noise=velocity_noise,
     )
     animator.run(save_animation=save_animation)
@@ -487,8 +490,8 @@ def animation_position_noise(save_animation=False):
     delta_time = 0.03
     dimension = 2
 
-    start_position = np.array([-2.5, -1.0])
-    attractor_position = np.array([2.5, 1.0])
+    start_position = np.array([-1.0, -2.0])
+    attractor_position = np.array([1.0, 2.5])
 
     initial_dynamics = LinearSystem(
         attractor_position=attractor_position,
@@ -527,8 +530,8 @@ def animation_position_noise(save_animation=False):
     # x_lim = [-2.5, 2.5]
     # y_lim = [-2.5, 2.5]
 
-    x_lim = [-3, 3]
-    y_lim = [-2.0, 2.0]
+    x_lim = [-2, 2]
+    y_lim = [-3.0, 3.0]
 
     it_max = 300
 
@@ -669,6 +672,6 @@ if (__name__) == "__main__":
     # def main():
 
     plt.style.use("dark_background")
-    # animation_velocity_noise(save_animation=False)
+    animation_velocity_noise(save_animation=True)
     # animation_position_noise(save_animation=False)
-    animation_velocity_measurement_noise(save_animation=True)
+    # animation_velocity_measurement_noise(save_animation=True)
