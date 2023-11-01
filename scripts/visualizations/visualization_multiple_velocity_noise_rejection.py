@@ -672,6 +672,6 @@ if (__name__) == "__main__":
     # def main():
 
     plt.style.use("dark_background")
-    animation_velocity_noise(save_animation=True)
-    # animation_position_noise(save_animation=False)
+    # animation_velocity_noise(save_animation=False)
+    animation_position_noise(save_animation=False)
     # animation_velocity_measurement_noise(save_animation=True)
